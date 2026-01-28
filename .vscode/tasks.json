@@ -1,0 +1,75 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "📖 编译论文 (Compile Thesis)",
+      "type": "shell",
+      "command": "make",
+      "args": ["thesis"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$latex"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "👁️ 预览论文 (Preview Thesis)",
+      "type": "shell",
+      "command": "make",
+      "args": ["viewthesis"],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "📚 编译文档 (Compile Documentation)",
+      "type": "shell",
+      "command": "make",
+      "args": ["doc"],
+      "problemMatcher": ["$latex"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    },
+    {
+      "label": "🧹 清理编译文件 (Clean)",
+      "type": "shell",
+      "command": "make",
+      "args": ["clean"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "🗑️ 全部清理 (Distclean)",
+      "type": "shell",
+      "command": "make",
+      "args": ["distclean"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "✨ 生成项目类文件 (Generate Classes)",
+      "type": "shell",
+      "command": "make",
+      "args": ["cls"],
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ]
+}

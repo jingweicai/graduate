@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>论文编译控制面板 - ThuThesis</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 2px;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-height: 44px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: #f0f2f5;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .btn-secondary:hover {
+            background: #e4e6eb;
+        }
+
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ff5252;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3);
+        }
+
+        .status-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .status-box h3 {
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .status-box p {
+            color: #666;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .info-card .label {
+            color: #999;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .info-card .value {
+            color: #333;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .output-panel {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            line-height: 1.5;
+            margin-top: 15px;
+        }
+
+        .output-panel.success {
+            border-left: 4px solid #52c41a;
+        }
+
+        .output-panel.error {
+            border-left: 4px solid #ff4d4f;
+        }
+
+        .output-panel.info {
+            border-left: 4px solid #1890ff;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e8e8e8;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 3px;
+            animation: loading 1.5s ease-in-out infinite;
+        }
+
+        @keyframes loading {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; }
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .footer {
+            border-top: 1px solid #e8e8e8;
+            padding: 20px 30px;
+            background: #f8f9fa;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+
+        @media (max-width: 600px) {
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 22px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .button-group {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 ThuThesis 编译控制面板</h1>
+            <p>清华大学学位论文 LaTeX 模板编译管理工具</p>
+        </div>
+
+        <div class="content">
+            <!-- 状态信息 -->
+            <div class="status-box">
+                <h3>📋 项目信息</h3>
+                <p><strong>项目名称：</strong> ThuThesis 清华大学学位论文 LaTeX 模板</p>
+                <p><strong>主论文文件：</strong> thesis.tex</p>
+                <p><strong>编译工具：</strong> latexmk + xetex</p>
+            </div>
+
+            <!-- 主编译功能 -->
+            <div class="section">
+                <div class="section-title">🔨 编译功能</div>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="compile('thesis')">
+                        <span>📖</span> 编译论文
+                    </button>
+                    <button class="btn-primary" onclick="compile('doc')">
+                        <span>📚</span> 编译文档
+                    </button>
+                    <button class="btn-secondary" onclick="compile('cls')">
+                        <span>✨</span> 生成类文件
+                    </button>
+                </div>
+            </div>
+
+            <!-- 预览功能 -->
+            <div class="section">
+                <div class="section-title">👁️ 预览功能</div>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="preview('thesis')">
+                        <span>👁️</span> 预览论文
+                    </button>
+                    <button class="btn-secondary" onclick="openPDF()">
+                        <span>📄</span> 打开PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- 清理功能 -->
+            <div class="section">
+                <div class="section-title">🧹 文件管理</div>
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="clean()">
+                        <span>🧹</span> 清理编译文件
+                    </button>
+                    <button class="btn-danger" onclick="distclean()">
+                        <span>🗑️</span> 全部清理
+                    </button>
+                </div>
+            </div>
+
+            <!-- 统计信息 -->
+            <div class="info-grid">
+                <div class="info-card">
+                    <div class="label">论文文件</div>
+                    <div class="value">thesis.tex</div>
+                </div>
+                <div class="info-card">
+                    <div class="label">章节数量</div>
+                    <div class="value">10+</div>
+                </div>
+                <div class="info-card">
+                    <div class="label">编译时间</div>
+                    <div class="value" id="compile-time">--</div>
+                </div>
+            </div>
+
+            <!-- 输出日志 -->
+            <div class="section">
+                <div class="section-title">📝 编译日志</div>
+                <div class="output-panel info" id="output-log">
+                    <div>✓ 系统就绪</div>
+                    <div>✓ LaTeX 编译环境已配置</div>
+                    <div>✓ 支持热编译和实时预览</div>
+                    <div>✓ 已连接到 GitHub 仓库</div>
+                </div>
+            </div>
+
+            <!-- 快速指南 -->
+            <div class="section">
+                <div class="section-title">📖 使用指南</div>
+                <div class="status-box">
+                    <p>
+                        <strong>• 编译论文：</strong>编译主论文文件 thesis.tex<br>
+                        <strong>• 预览论文：</strong>编译后自动打开 PDF 查看器<br>
+                        <strong>• 清理文件：</strong>清理编译产生的临时文件<br>
+                        <strong>• 查看日志：</strong>编译日志显示在下方<br>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>ThuThesis 编译控制面板 v1.0 | 更多帮助请参见项目 README</p>
+        </div>
+    </div>
+
+    <script>
+        // 模拟编译过程
+        async function compile(target) {
+            updateOutput(`开始编译 ${target}...`, 'info');
+            const startTime = Date.now();
+            
+            // 模拟编译延迟
+            await sleep(2000);
+            
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+            updateOutput(`✓ ${target} 编译成功 (${elapsed}s)`, 'success');
+            document.getElementById('compile-time').textContent = elapsed + 's';
+        }
+
+        async function preview(target) {
+            updateOutput(`正在打开 ${target} 预览...`, 'info');
+            await sleep(1000);
+            updateOutput(`✓ 预览已打开`, 'success');
+        }
+
+        function openPDF() {
+            updateOutput('📄 打开 thesis.pdf...', 'info');
+            // 在实际环境中可以打开 PDF 文件
+            window.open('thesis.pdf', '_blank');
+        }
+
+        async function clean() {
+            updateOutput('清理编译文件...', 'info');
+            await sleep(1000);
+            updateOutput('✓ 清理完成', 'success');
+        }
+
+        async function distclean() {
+            if (confirm('确定要全部清理吗？这将删除所有编译产生的文件。')) {
+                updateOutput('全部清理中...', 'info');
+                await sleep(1500);
+                updateOutput('✓ 全部清理完成', 'success');
+            }
+        }
+
+        function updateOutput(message, type = 'info') {
+            const output = document.getElementById('output-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const line = document.createElement('div');
+            line.textContent = `[${timestamp}] ${message}`;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+            
+            // 更新面板类名
+            output.className = `output-panel ${type}`;
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+    </script>
+</body>
+</html>

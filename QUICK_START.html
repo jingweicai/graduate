@@ -1,0 +1,403 @@
+<!-- Quick Start Guide - Save as HTML and open in browser -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThuThesis 快速参考指南</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        header p {
+            opacity: 0.9;
+        }
+        main {
+            padding: 40px;
+        }
+        section {
+            margin-bottom: 40px;
+        }
+        h2 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+        .method-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .method-card {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+        .method-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.1);
+        }
+        .method-card h3 {
+            color: #667eea;
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .method-card code {
+            background: #f0f0f0;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            display: block;
+            margin: 10px 0;
+            color: #d63384;
+            overflow-x: auto;
+        }
+        .method-card p {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .quick-shortcuts {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .shortcut-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .shortcut-key {
+            background: white;
+            border: 1px solid #999;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-weight: 600;
+            margin-right: 15px;
+            min-width: 120px;
+        }
+        .tip-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .warning-box {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        footer {
+            background: #f8f9fa;
+            padding: 20px 40px;
+            text-align: center;
+            color: #666;
+            font-size: 13px;
+            border-top: 1px solid #e8e8e8;
+        }
+        .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        @media print {
+            .print-button {
+                display: none;
+            }
+            body {
+                background: white;
+            }
+            .container {
+                box-shadow: none;
+            }
+        }
+        @media (max-width: 600px) {
+            header {
+                padding: 20px;
+            }
+            header h1 {
+                font-size: 24px;
+            }
+            main {
+                padding: 20px;
+            }
+            .method-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="print-button" onclick="window.print()">🖨️ 打印</button>
+    
+    <div class="container">
+        <header>
+            <h1>📚 ThuThesis 快速参考指南</h1>
+            <p>清华大学学位论文 LaTeX 模板快速入门</p>
+        </header>
+
+        <main>
+            <!-- 快速开始 -->
+            <section>
+                <h2>⚡ 快速快捷键</h2>
+                <div class="quick-shortcuts">
+                    <div class="shortcut-item">
+                        <span class="shortcut-key">Ctrl + Shift + B</span>
+                        <span>编译论文（VS Code）</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="shortcut-key">Ctrl + Shift + P</span>
+                        <span>打开任务菜单（VS Code）</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="shortcut-key">Ctrl + S</span>
+                        <span>保存文件</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 编译方式 -->
+            <section>
+                <h2>🔨 编译方式对比</h2>
+                <div class="method-grid">
+                    <div class="method-card">
+                        <h3>✅ VS Code 任务</h3>
+                        <p>最方便的方式</p>
+                        <code>Ctrl + Shift + B</code>
+                        <p>推荐度：⭐⭐⭐⭐⭐</p>
+                    </div>
+                    <div class="method-card">
+                        <h3>🌐 Web 面板</h3>
+                        <p>可视化图形界面</p>
+                        <code>compile-panel.html</code>
+                        <p>推荐度：⭐⭐⭐⭐</p>
+                    </div>
+                    <div class="method-card">
+                        <h3>💻 命令行</h3>
+                        <p>灵活的命令行工具</p>
+                        <code>compile.bat compile</code>
+                        <p>推荐度：⭐⭐⭐</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 常用命令 -->
+            <section>
+                <h2>📝 常用命令</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>操作</th>
+                            <th>Windows</th>
+                            <th>Linux/macOS</th>
+                            <th>Python</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>📖 编译论文</td>
+                            <td><code>compile.bat compile</code></td>
+                            <td><code>./compile.sh compile</code></td>
+                            <td><code>python compile-tool.py compile</code></td>
+                        </tr>
+                        <tr>
+                            <td>👁️ 预览论文</td>
+                            <td><code>compile.bat preview</code></td>
+                            <td><code>./compile.sh preview</code></td>
+                            <td><code>python compile-tool.py preview</code></td>
+                        </tr>
+                        <tr>
+                            <td>📚 编译文档</td>
+                            <td><code>compile.bat doc</code></td>
+                            <td><code>./compile.sh doc</code></td>
+                            <td><code>make doc</code></td>
+                        </tr>
+                        <tr>
+                            <td>🧹 清理文件</td>
+                            <td><code>compile.bat clean</code></td>
+                            <td><code>./compile.sh clean</code></td>
+                            <td><code>make clean</code></td>
+                        </tr>
+                        <tr>
+                            <td>🗑️ 全部清理</td>
+                            <td><code>compile.bat distclean</code></td>
+                            <td><code>./compile.sh distclean</code></td>
+                            <td><code>make distclean</code></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- 工作流 -->
+            <section>
+                <h2>📋 标准工作流程</h2>
+                <div class="success-box">
+                    <p><strong>步骤 1：</strong> 编辑论文文件（data/ 目录）</p>
+                    <p><strong>步骤 2：</strong> 按 Ctrl+Shift+B 编译</p>
+                    <p><strong>步骤 3：</strong> 查看生成的 PDF 文件</p>
+                    <p><strong>步骤 4：</strong> 修复错误并重复编译</p>
+                    <p><strong>步骤 5：</strong> 完成后 push 到 GitHub</p>
+                </div>
+            </section>
+
+            <!-- 文件结构 -->
+            <section>
+                <h2>📁 项目文件结构</h2>
+                <pre style="background: #f5f5f5; padding: 15px; border-radius: 8px; overflow-x: auto;"><code>
+├── thesis.tex              # 主论文文件
+├── data/                   # 论文内容
+│   ├── abstract.tex        # 摘要
+│   ├── chap01-Intro.tex    # 第一章
+│   └── ... (其他章节)
+├── figures/                # 图表目录
+├── ref/                    # 参考文献
+│   ├── refs.bib            # 主参考文献
+│   └── appendix.bib        # 附录参考文献
+├── .vscode/                # VS Code 配置
+│   ├── tasks.json          # 编译任务配置
+│   └── settings.json       # 编辑器设置
+├── compile-panel.html      # Web 编译面板
+├── compile.bat             # Windows 编译脚本
+└── compile.sh              # Linux/macOS 编译脚本
+                </code></pre>
+            </section>
+
+            <!-- 提示和警告 -->
+            <section>
+                <h2>⚠️ 重要提示</h2>
+                
+                <div class="tip-box">
+                    <strong>💡 提示：</strong> 第一次编译可能需要 5-10 分钟，后续编译会更快。这是正常的，因为 LaTeX 需要下载所有必需的包。
+                </div>
+
+                <div class="warning-box">
+                    <strong>⚠️ 警告：</strong> 不要手动删除编译产生的文件（.aux, .fls 等），使用 <code>clean</code> 命令清理。
+                </div>
+
+                <div class="success-box">
+                    <strong>✅ 推荐：</strong> 定期提交代码到 GitHub。使用 <code>git commit -m "你的提交信息"</code> 保存进度。
+                </div>
+            </section>
+
+            <!-- 故障排除 -->
+            <section>
+                <h2>🔧 常见问题解决</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>问题</th>
+                            <th>解决方案</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>找不到 xetex</td>
+                            <td>安装完整的 LaTeX 发行版（MiKTeX 或 TeX Live）</td>
+                        </tr>
+                        <tr>
+                            <td>编译失败</td>
+                            <td>查看错误信息，通常是语法错误。检查 .tex 文件的括号和命令</td>
+                        </tr>
+                        <tr>
+                            <td>PDF 预览不显示</td>
+                            <td>手动打开 thesis.pdf，或检查 PDF 查看器是否安装</td>
+                        </tr>
+                        <tr>
+                            <td>编译很慢</td>
+                            <td>这是正常的。尝试 clean 后重新编译，或检查磁盘空间</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- 快速链接 -->
+            <section>
+                <h2>🔗 相关资源</h2>
+                <ul style="list-style: none; padding: 0;">
+                    <li style="margin-bottom: 10px;">📖 <a href="COMPILE_GUIDE.md" target="_blank">完整编译指南</a></li>
+                    <li style="margin-bottom: 10px;">🌐 <a href="compile-panel.html" target="_blank">Web 可视化面板</a></li>
+                    <li style="margin-bottom: 10px;">📝 <a href="README.md" target="_blank">项目 README</a></li>
+                    <li style="margin-bottom: 10px;">🔗 <a href="https://github.com/jingweicai/graduate" target="_blank">GitHub 仓库</a></li>
+                </ul>
+            </section>
+        </main>
+
+        <footer>
+            <p>ThuThesis 编译工具 v1.0 | 更新于 2025-01-28</p>
+        </footer>
+    </div>
+</body>
+</html>
