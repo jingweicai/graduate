@@ -1,0 +1,515 @@
+% !TeX root = ../thesis.tex
+
+\chapter{RailX: A Flexible, Scalable, and Low-Cost Network Architecture for Hyper-Scale LLM Training Systems}
+\label{chap09:railx}
+
+In recent years, AI workloads have become increasingly large, growing much faster than the hardware~\cite{Kaplan_ScalingLawsNeural_2020,Gherghescu_IveGot99_2024,Gherghescu_LookTrainingLarge_2024,Dubey_Llama3Herd_2024, OpenAI_GPT4TechnicalReport_2024}. To support hyper-scale Large Language Model (LLM) training workloads, hyper-scale infrastructures are required~\cite{Duan_EfficientTrainingLarge_2024, Dubey_Llama3Herd_2024, Qian_AlibabaHPNData_2024,Zu_ResiliencyScaleManaging_2024,Jiang_MegaScaleScalingLarge_2024}; however, traditional network architecture is neither scalable nor cost-effective enough.
+
+Fat-tree-based topologies are widely used in existing datacenters; however, they are extremely expensive to provide sufficient bandwidth~\cite{Hoefler_HammingMeshNetworkTopology_2022,Barroso_DatacenterComputerDesigning_2019,Gherghescu_IveGot99_2024,Gherghescu_LookTrainingLarge_2024}, especially at hyper-scale. As shown in Figure~\ref{chap09:fig:overview}(a), the \textit{rail-optimized} network topology~\cite{Patronas_OpticalSwitchingData_2025, Qian_AlibabaHPNData_2024,Wang_RailonlyLowCostHighPerformance_2024,Liu_HostmeshMonitorDiagnose_2024,NVIDIA_NVIDIADGXSuperPOD_2023}, collaborating with high-bandwidth scale-up networks (\textit{e.g.}, \textit{NVLink} network~\cite{Ishii_NvlinkNetworkSwitchNvidias_2022,Tirumala_NVIDIABlackwellPlatform_2024}), reduces the number of spine/core switches while maintaining performance~\cite{NVIDIA_DoublingAll2allPerformance_2022}. However, the bandwidth and scalability are still limited by the high-radix packet switch and the scale-up network, both of which are expensive to further scale. Besides, multi-stage switching also introduces significant energy and latency overhead~\cite{Greenberg_CostCloudResearch_2008,Popoola_EnergyConsumptionSwitchcentric_2018,VictorAvelar_AIDisruptionChallenges_2023,Katebzadeh_EvaluationInfiniBandSwitch_2020}, potentially preventing system scaling.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2025SIGCOMM/overview.pdf}
+  \caption{Scalability comparison of different topologies. $R$ is the switch radix, and $m$ is the local mesh/cube scale. (a) Two-level rail-optimized Fat-Tree; (b) OCS-based 3D-Torus; (c) RailX. \label{chap09:fig:overview}}
+\end{figure}
+
+\nomenclature{DP}{Data Parallelism, 数据并行}
+\nomenclature{TP}{Tensor Parallelism, 张量并行}
+\nomenclature{PP}{Pipeline Parallelism, 流水线并行}
+\nomenclature{SP}{Sequence Parallelism, 序列并行}
+\nomenclature{EP}{Expert Parallelism, 专家并行}
+\nomenclature{CP}{Context Parallelism, 上下文并行}
+\nomenclature{MOE}{Mixture-of-Experts, 混合专家}
+\nomenclature{OCS}{Optical Circuit Switch, 光路交换机}
+\nomenclature{CPO}{Co-Packaged Optics, 共封装光学}
+
+Direct networks, though they do not require high-radix switches, also face the scalability challenge. The Torus topology naturally fits the traffic of traditional AI workloads~\cite{Jouppi_TPUV4Optically_2023,Google_TPUV4Document_} with data/tensor/pipeline parallelism (DP/TP/PP)~\cite{Shoeybi_MegatronLMTrainingMultiBillion_2020,Narayanan_EfficientLargescaleLanguage_2021,Jiang_MegaScaleScalingLarge_2024,Huang_GpipeEfficientTraining_2019}. However, with the parameter/activation size scaling, more parallel strategies, including sequence parallelism (SP)~\cite{Korthikanti_ReducingActivationRecomputation_2022}, expert parallelism (EP) for mixture-of-experts (MOE) models~\cite{Rajbhandari_DeepSpeedMoE_2022,Lepikhin_GShardScalingGiant_2020,Fedus_SwitchTransformersScaling_2022,Riquelme_ScalingVisionSparse_2021,Jiang_MixtralExperts_2024,DeepSeek-AI_DeepSeekV2StrongEconomical_2024,DeepSeek-AI_DeepSeekV3TechnicalReport_2024,Dai_DeepSeekMoEUltimateExpert_2024,DeepSeek-AI_DeepSeekR1IncentivizingReasoning_2025} and context parallelism (CP) for long sequences~\cite{Jacobs_DeepSpeedUlyssesSystem_2023,Liu_RingAttentionBlockwise_2023,NVIDIA_ContextParallelismOverview_}, are adopted and combined, making mapping on Torus complex. Moreover, the diameter of regular/twisted Torus networks is large, and the bisection bandwidth is insufficient for all-to-all traffic of MOE and ranking models~\cite{Camara_TwistedTorusTopologies_2010,Gangidi_RDMAEthernetDistributed_2024,Naumov_DeepLearningRecommendation_2019}. Furthermore, direct networks face flexibility and reliability challenges; thus, as shown in Figure~\ref{chap09:fig:overview}(b), \textit{Google TPUv4} cluster introduces optical circuit switches (OCSes) to reconfigure the interconnection~\cite{Zu_ResiliencyScaleManaging_2024}. However, the centralized optical switching layer limits the network scalability by the OCS port count (\textit{i.e.,} no more than 64 cubes by using 128-port OCSes~\cite{Liu_LightwaveFabricsAtScale_2023}).
+
+There are a few other academic topologies, including \textit{HammingMesh}~\cite{Hoefler_HammingMeshNetworkTopology_2022}, \textit{BML}~\cite{Wang_ScalableHighPerformanceFaultTolerant_2020}, \textit{TopoOpt}~\cite{Wang_TopoOptCooptimizingNetwork_2023}, \textit{SiP-ML}~\cite{Khani_SiPMLHighbandwidthOptical_2021}, and \textit{Rail-only}~\cite{Wang_RailonlyLowCostHighPerformance_2024}, designed for AI training workloads.
+However, they do not take the latest hyper-scale workloads with high-dimensional hybrid parallelism (especially expert parallelism) into account, and their scalability is still limited by the radix of packet/circuit switches (specifically, hard to scale to $>$100K chips with flat switching layer). Therefore, people are motivated to design a more scalable network architecture for modern hyper-scale LLM training workloads.
+
+
+In this chapter, \textit{RailX} network architecture is presented, where ``\textit{X}'' indicates the crossing of rails. As shown in Figure~\ref{chap09:fig:overview}(c), locally, chips within a node are directly interconnected by a high-bandwidth 2D-mesh, and the row/column rail ports of each node are connected to row/column circuit switches separately. By configuring the circuit switches, different row/column rails are interconnected into separate rings; simultaneously, nodes are interconnected into low-diameter topologies, including \textit{HyperX and Dragonfly}. The major contributions of this chapter can be summarized as follows:
+\begin{itemize}
+  \item \textit{RailX} fully utilizes advanced packaging/integration technologies and circuit switching, achieving ultra-high scalability and cost-effectiveness. Specifically, more than 100K chips can be interconnected with a flat (single-tier) 128-port circuit switching layer, and the typical diameter is only $2\sim 4$ inter-node hops. The network cost per injection/All-Reduce bandwidth of \textit{RailX} is less than $10\%$ of the Fat-Tree, and the cost per bisection/All-to-All bandwidth is less than $50\%$ of the Fat-Tree.
+  \item \textit{Rail-Ring-based All-to-All} interconnection method based on \textit{Hamiltonian Decomposition} theory~\cite{Tillson_HamiltonianDecompositionK2m_1980} is proposed to construct an all-to-all topology from separate rings, achieving efficient All-Reduce and All-to-All communication simultaneously.
+  \item Point-to-point routing and hierarchical collective algorithms to fully utilize local high-bandwidth and low-latency links are designed, achieving better All-Reduce performance than traditional ring-collective algorithms on Torus and HammingMesh.
+  \item \textit{Dimension Splitting} method is also presented to flexibly adjust the number of topology dimensions and the bandwidth/scale of each dimension, facilitating the mapping of diverse LLM training workloads with various types, shapes, scales, and parallelism (TP, CP, EP, DP, PP) strategies. In addition, \textit{RailX} can be used in MLaaS scenarios, where single or multiple training workloads can be flexibly mapped and scheduled, and failures can be worked around.
+\end{itemize}
+
+\section{Challenges and Motivations}
+\subsection{Advances in Hardware Technologies}
+
+In recent years, hardware technologies have made significant progress, promising to inspire new network architectures. Advanced integration technologies such as \textit{Panel-Level Packaging} and \textit{System-on-Wafer} allow many chips to be in integrated into a single package~\cite{Chun_InFO_SoWSystemonWaferHigh_2020,DouglasYu_TSMCPackagingTechnologies_2021,KevinZhang_OptionCoWoSSystemonWafer_2024,Wang_DemonstrationWaferlevelIntegration_2023,Lau_RecentAdvancesTrends_2019}, and high-speed interfaces provide high-bandwidth, low-power, and low-latency connectivity between chips~\cite{Shukla_ShortReachInterconnect_2022,_UniversalChipletInterconnect_2024,Wei_93NVLinkC2CCoherent_2023,Tonietto_FutureShortReach_2022}. As shown in Table~\ref{chap09:tab:hop}~\cite{Mehta_AIComputeASIC_2024,Fathololoumi_4TbOptical_2024,_UniversalChipletInterconnect_2024, Sella_FECKilledCutThrough_2018, _CommonElectricalCEI_2024, Frankel_ProspectsOpticalTransceivers_2021, DavideTonietto_EnergyEfficiencySerial_2023}, the \textit{UCIe} die-to-die interface provide $1317 GBps/mm$ shoreline bandwidth density ($1350 GBps/mm^2$ area density) within the package~\cite{_UniversalChipletInterconnect_2024}, much larger and cheaper than any traditional inter-chip interfaces. The latency and power consumption of such on-package interfaces are also much lower. At the same time, the \textit{Co-Packaged Optics (CPO)} technology~\cite{Minkenberg_CopackagedDatacenterOptics_2021,Maniotis_ExploringBenefitsUsing_2024} also significantly increases the off-package bandwidth density up to $128 GBps/mm$ (32 400G ports per chip edge)~\cite{Fathololoumi_4TbOptical_2024, Mehta_AIComputeASIC_2024} and eliminates separate optical modules.
+
+\begin{table}[ht]
+  \centering
+  \caption{Chip-to-chip interfaces off/on the package. \label{chap09:tab:hop}}
+  \begin{tabular}{ccc}
+    \toprule
+    \textbf{Interface}         & \textbf{SerDes}    & \textbf{UCIe} \\
+    \midrule
+    \textbf{Physical Medium}   & Fiber/Copper Cable & RDL/Substrate \\
+    \textbf{Density} (GBps/mm) & $128$              & $1317$        \\
+    \textbf{Energy} (pj/bit)   & $>5$               & $<1$          \\
+    \textbf{Channel Reach}     & $>10$ m            & $<25$ mm      \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+However, there are also challenges in utilizing these technologies. Firstly, the wire density is high, and the connection distance is short; therefore, placement and wiring are challenging. Only flat topologies such as 2D-mesh and HexaMesh~\cite{Iff_HexaMeshScalingHundreds_2023} are feasible within the package~\cite{Pal_Designing2048Chiplet14336Core_2021, Hu_WaferScaleComputingAdvancements_2024,Chen_WaferscaleNetworkSwitches_2024}. At the same time, there is a significant gap between on-package and off-package bandwidth. As a result, when scaling out packages into large system-level networks~\cite{Talpes_MicroarchitectureDOJOTeslas_2023}, the mismatched bandwidth can lead to low utilization. Besides, mapping highly parallelized AI training workloads on such networks is also challenging.
+
+\subsection{Challenges of Existing Networks for AI}
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2025SIGCOMM/rail-optimized.pdf}
+  \caption{Rail-optimized Fat-Tree. The $i$-th GPU in each node is connected to the $i$-th rail switch. With proper mapping, most communication does not need to go through the cross-rail switches; thus, the number of cross-rail switches can be reduced. \label{chap09:fig:rail-optimized}}
+\end{figure}
+\subsubsection{\bf Fat-Tree is expensive}
+In existing architectures, processors within a node are locally interconnected by a high-bandwidth low-latency Fat-Tree (\textit{e.g.,} the DGX H100 256 POD uses a 2-level NVLink-based Fat-Tree)~\cite{Ishii_NvlinkNetworkSwitchNvidias_2022,Elster_NvidiaHopperGPU_2022,Choquette_NVIDIAHopperH100_2023}. 
+% The global collective traffic of well-mapped LLM training workloads is often conducted between chips with the same local rank ID~\cite{Wang_RailonlyLowCostHighPerformance_2024}. 
+As shown in Figure~\ref{chap09:fig:rail-optimized}, in a rail-optimized Fat-Tree, the NIC/GPU-$i$ of each node is connected to the same rail switch $i$ ($i=1,...,V$, where $V$ is the number of GPUs per node). With proper mapping, most communication does not need to go through the cross-rail switches; thus, the traffic imbalance and the cost of the network (number of cross-rail switches) are reduced~\cite{Wang_RailonlyLowCostHighPerformance_2024}. For massive cross-rail communication (\textit{e.g.,} all-to-all communication conducted by MOE and ranking models), local networks can be utilized to provide bandwidth among different rails~\cite{Yu_MoESysDistributedEfficient_2024,Rajbhandari_DeepSpeedMoE_2022, NVIDIA_DoublingAll2allPerformance_2022}. As the example shown in Figure~\ref{chap09:fig:rail-optimized}, messages from Node-1-GPU-1 can be sent to Node-1-GPU-V through the local network first, then to Node-R-GPU-V without going through the cross-rail switches.
+
+Though the rail-optimized Fat-Tree is more cost-effective than the traditional Fat-Tree, the scalability challenge is still critical. Using rail switches with $R$ downlink ports and nodes with $V$ GPUs, a rail-optimized segment can only support $R\times V$ GPUs. The latest \textit{Alibaba HPN} achieves $400$ $Gb/s$ bandwidth among $15K$ GPUs by using $360$ $51.2T$ switches~\cite{Qian_AlibabaHPNData_2024}. At the same time, $7.5K$ \textit{NVLink} switches are required to provide $400\sim 900$ $GB/s$ local bandwidth. To further scale and increase the bandwidth, both the scale-out (Ethernet) and scale-up (NVLlink) networks are expensive. For example, on the one hand, the GB200 NVL72 node (cabinet) has an average sale price of \$$3$M while $36$ separate \textit{GB200 Superchips} have a total price of \$$2.16$M~{\cite{CharlotteTrueman_NvidiaIncreasesBlackwell_2024}}; that is to say, the scale-up network accounts for about 30\% of the GPU node cost. On the other hand, to further interconnect the NVL72 node with 800G-per-GPU NIC in a 3-tier Fat-Tree, $72\times5\times800$G switching bandwidth and $72\times3$ 800G-links are required per node. If the prices of a $51.2$T switch and an optical cable with transceivers are estimated at \$$40$K~{\cite{NADDOD_64PortEthernetSwitch800Gb_}} and \$$2$K~{\cite{Gherghescu_IveGot99_2024,Gherghescu_LookTrainingLarge_2024,_NVIDIA800GbTwinPort_}}, the scale-out network introduces extra $21.9$\% cost. Besides, the energy ($>10$W$/Tbps/$hop~\cite{_MarvellTeralynx512T_}, additional one fifth of the computing power~\cite{Gherghescu_IveGot99_2024}) and latency ($>200ns/$hop~\cite{Katebzadeh_EvaluationInfiniBandSwitch_2020}) overhead of multi-layer switching are also significant. In summary, packet-switch-based Fat-Tree is too expensive to provide sufficient bandwidth at hyperscales.
+  % #SW per node: 72*5*800/51200=5.625
+  % #cables per node: 72*3=216
+  % (5.625*40K+216*2K)/3M=21.9%
+
+
+  \begin{figure}[tb]
+    \centering
+    \includegraphics[width=0.8\linewidth]{../figures/2025SIGCOMM/TPU.pdf}
+    \caption{TPUv4 network architecture. (a) Each cube contributes two ports from opposite sides to each optical switch. (b) Regular Torus. (c) Twisted Torus: crosswise connects rows/columns (over a $2n \times n$ mesh, connect $(2n$$-$$1,y)$ to $(0, y)$ and $(x, n$$-$$1)$ to $((x$$+$$n)\%2n, 0)$). \label{chap09:fig:tpu}}
+  \end{figure}
+  \subsubsection{\bf Direct topologies have limited bisection bandwidth and flexibility} \label{chap09:sec:torus-limitation} AI training workloads with the three typical parallelism strategies (tensor, data, and pipeline) introduce 3D-shape communication patterns; therefore, Torus topology provides optimal ring-collective performance for traditional AI workloads without using expensive packet switches~\cite{Jouppi_TPUV4Optically_2023}. As shown in Figure~\ref{chap09:fig:tpu}(a), for usability and reliability purposes, the \textit{Google TPUv4} cluster introduces cheaper optical circuit switches to reconfigure interconnection among multiple 3D-cubes~\cite{Zu_ResiliencyScaleManaging_2024}. As a result, different shapes of regular/twisted 3D-Torus can be constructed for different workloads, and machine/chip/link failures can be worked around.
+
+  Though the Torus topology is cost-effective, it still faces scalability challenges. With the increase of model/data size, more parallel strategies, including expert parallelism with all-to-all traffic~\cite{Lepikhin_GShardScalingGiant_2020,Riquelme_ScalingVisionSparse_2021,Rajbhandari_DeepSpeedMoE_2022} and sequence/context parallelism~\cite{Liu_RingAttentionBlockwise_2023, Jacobs_DeepSpeedUlyssesSystem_2023,NVIDIA_ContextParallelismOverview_}, are adopted and combined~\cite{Dubey_Llama3Herd_2024, Zhu_LLaMAMoEBuildingMixtureofExperts_2024,DeepSeek-AI_DeepSeekV3TechnicalReport_2024}. As shown in Figure~\ref{chap09:fig:communication}, a high-dimensional parallelism strategy is introduced for hyper-scale LLM training workloads. At the same time, attention and FFN (expert) layers adopt heterogeneous parallelism strategies due to the expert parallelism with all-to-all traffic (also see Figure~\ref{chap09:fig:expert-parallelism} in Section~\ref{chap09:sec:mapping})~\cite{Rajbhandari_DeepSpeedMoE_2022,Yu_MoESysDistributedEfficient_2024,DeepSeek-AI_DeepSeekV3TechnicalReport_2024}. The communication scope, volume, and frequency of different parallelisms are significantly different (\textit{e.g.}, TP usually introduces higher bandwidth requirement than DP~\cite{Dubey_Llama3Herd_2024, Wang_RailonlyLowCostHighPerformance_2024} and is hard to overlap with computation), but the dimension and bandwidth of the Tours topology is fixed and uniform. Therefore, mapping heterogeneous high-dimensional parallelism on Torus topologies is complex and inefficient.
+
+  \begin{figure}[tb]
+    \centering
+    \includegraphics[width=0.7\linewidth]{../figures/2025SIGCOMM/communication.pdf}
+    \caption{High-dimensional (TP, CP, EP, DP, PP) heterogeneous parallelism for hyper-scale LLM training. The traditional TP, DP, and PP parallelisms form 3D-Cube-shape communication, but CP introduces an extra dimension, while EP introduces all-to-all communication. \label{chap09:fig:communication}}
+  \end{figure}
+
+  At the same time, the diameter of the Torus topology is large, and the bisection bandwidth is insufficient for all-to-all communication, which is essential for MOE and ranking models and also appears in context parallelism~\cite{Jacobs_DeepSpeedUlyssesSystem_2023}. As shown in Figure~\ref{chap09:fig:tpu}(c), to improve all-to-all performance, \textit{TPUv4} network adopts the twisted Torus, which crosswise connects rows/columns (over a $2n \times n$ mesh, connect $(2n$$-$$1,y)$ to $(0, y)$ and $(x, n$$-$$1)$ to $((x$$+$$n)\%2n, 0)$), thus improving bisection bandwidth by no more than two times~\cite{Camara_TwistedTorusTopologies_2010}. However, the twisted connection requires different cube rows/columns to be connected to the same OCSes, which constrains the network scale $N$ by the OCS radix $R$ ($N=R/2$) but only brings limited benefits ($< 2\times$ bisection bandwidth improvement). In addition, ring-collective on Torus cannot utilize the potential high-bandwidth benefits offered by intra-node direct connectivity.
+
+  \begin{figure}[b]
+    \centering
+    \includegraphics[width=0.8\linewidth]{../figures/2025SIGCOMM/rail-interconnection.pdf}
+    \caption{Rail-ring-based interconnection. (a) Each node is connected to every other node (b) $4$ rails are interconnected into rings separately with different orders. (c) Four rails are divided into two separate rail groups, forming a 2D-HyperX (2D all-to-all) topology with $3\times 3$ nodes. \label{chap09:fig:rail-interconnection}}
+  \end{figure}
+
+  \begin{figure*}[tbh]
+    \centering
+    \includegraphics[width=0.99\linewidth]{../figures/2025SIGCOMM/architecture.pdf}
+    \caption{RailX physical architecture. (a) Chips within a node are connected into a 2D-mesh topology by high-bandwidth, low-latency direct links (\textit{e.g.,} UCIe and UALink). The short-reach interfaces at the edges are converted to long-reach optical ports for inter-node interconnection. (b) Nodes are connected to optical switches in a 2D organization ($\frac{R}{2}\times \frac{R}{2}$): different rows and columns of nodes are connected to different X/Y OCS groups ($r=mn$ OCSes per each group), and X/Y ports with the same rail-ID are connected to the same X/Y switch. \label{chap09:fig:architecture}}
+  \end{figure*}
+  \section{RailX Architecture}
+  \subsection{Rail-Ring-based Interconnection}
+  \label{chap09:sec:rail-ring}
+  To address the challenges of traditional topologies, a new network architecture is motivated. One idea is inspired by the \textit{Hamiltonian Decomposition of Complete Graphs}~\cite{Tillson_HamiltonianDecompositionK2m_1980} that \textit{the edges of the complete directed graph of \,$k$ ($\neq4,6$) vertices can be partitioned into $k-1$ directed Hamiltonian cycles}. As shown in Figure~\ref{chap09:fig:rail-interconnection}(a), a node has four rails (two $+/-$ ports per rail), and all inter-node links only connect the same rails. As shown in Figure~\ref{chap09:fig:rail-interconnection}(b), each rail forms a ring connecting all nodes in a different order. Consequently, five nodes form an all-to-all topology, and any two nodes are directly connected on two different rail rings (\textit{e.g.}, node-$0$ and node-$1$ are connected on rail-$0$ and rail-$3$). The formalized description of the \textit{rail-ring-based all-to-all interconnection} is given in Lemma~\ref{lemma:hamilton-decomp}.
+  \begin{lemma}
+    \label{lemma:hamilton-decomp}
+    Given a node with $k-1$ rails (each rail has $+/-$ two ports), the all-to-all topology of \,$k$ ($\neq4,6$, only two exceptions) nodes can be constructed from $k-1$ rail-based Hamiltonian rings. Any two nodes $(A, B)$ are directly connected on two different rails $r_a$ and $r_b$: $A+\stackrel{r_a}{\Leftrightarrow}B-$ and $A-\stackrel{r_b}{\Leftrightarrow}B+$.
+  \end{lemma}
+  It is evident that such all-to-all interconnection has a shorter diameter and better bisection bandwidth than Torus; however, the max all-to-all scale is limited by the number of rails (ports).
+
+  Another idea is motivated by the \textit{Interface Grouping} (Chapter~\ref{chap04-scalable}), which splits ports into different groups to adjust the number of logical dimensions and the bandwidth per dimension. As shown in Figure~\ref{chap09:fig:rail-interconnection}(c), four rails can be divided into two separate rail groups, forming a 2D all-to-all (HyperX~\cite{Ahn_HyperXTopologyRouting_2009}) topology with $3\times 3$ nodes. A node with $n$ rails can be interconnected into a $k$-D hyper-X topology with $(\frac{n}{k}+1)^k$ nodes. It is also possible to let different rail groups have different numbers of rails and different interconnections. In this way, not only can the topology and bandwidth be flexibly adjusted, but the scalability is also improved.
+
+  \subsection{Physical Architecture}
+  \label{chap09:sec:topology}
+  The following symbols are used in the description:
+  \begin{table}[ht]
+    \centering
+    \renewcommand\arraystretch{1.2}
+    \begin{tabular}{rl}
+      $m \times m$ & The scale of the 2D-mesh of chip in a node                      \\
+      $n$          & The number of off-package ports per chip edge                   \\
+      $r$          & The number of rails per dimension (X/Y), $r=mn$                 \\
+      $k$          & The multiple of on-package bandwidth over off-package bandwidth \\
+      $R$          & The radix (port number) of the optical circuit switch           \\
+      $B_c$        & Bisection bandwidth (TX $+$ RX)                                 \\
+      $H_i, H_o$   & Internal direct hop and external optical hop                    \\
+    \end{tabular}
+  \end{table}
+
+  Basically, \textit{RailX} is a flat optical-circuit-switched network consisting of three physical levels: chip, node, and system. As shown in Figure~\ref{chap09:fig:architecture}(a), each chip is a processor/accelerator, and the original IO interfaces are high-density but short-reach (\textit{e.g.,} UCIe~\cite{_UniversalChipletInterconnect_2024}). $m\times m$ chips within a node are directly interconnected through these high-bandwidth links, forming a 2D-mesh topology. All the interfaces at the edges are converted by IO chiplets/modules to long-reach optical ports for upper-level interconnection~\cite{Chang_DOJOSuperComputeSystem_2022,Fathololoumi_4TbOptical_2024, Mehta_AIComputeASIC_2024,Howard_FirstDirectMeshtoMesh_2023}. If a chip has $n$ ports at each edge, an entire node has $r=mn$ ports at each edge, and each pair of ports ($+/-$) for each row and column is called a rail. Advanced packaging technologies are optimal but not essential as long as the intra-node direct connectivity provides cheaper and higher bandwidth (\textit{e.g.,} NVLink and UALink~\cite{Synopsys_UALinkIPSolution_}) than inter-node long-distance links.
+
+  As shown in Figure~\ref{chap09:fig:architecture}(b), all nodes in the system are connected to high-radix circuit switches in a 2D organization: X-rail $a$ and Y-rail $b$ of node $(i,j)$ are connected to X-OCS $(j, a)$ and Y-OCS $(i, b)$, respectively ($a,b\in[1,r], i,j\in[1, \frac{R}{2}]$). In other words, each node row and node column of the total $\frac{R}{2}\times \frac{R}{2}$ nodes are connected to one OCS group ($r$ switches), and ports with the same rail-ID are connected to the same switch.
+
+  The physical architecture of \textit{RailX} is a circuit-switched \textit{HammingMesh}~\cite{Hoefler_HammingMeshNetworkTopology_2022} and is similar to \textit{TPUv4} but has two major differences. \textbf{1) \textit{Chips are locally connected into a higher-bandwidth 2D-mesh rather than a uniform-bandwidth mesh or cube.}} The short-reach direct connectivity can provide much higher and cheaper bandwidth with lower latency and energy consumption, which is not fully utilized by \textit{HammingMesh} and \textit{TPUv4}. Besides, the 2D-mesh with abundant bisection bandwidth is utilized as a high-bandwidth switch~\cite{Chen_WaferscaleNetworkSwitches_2024}; thus, low-diameter topologies can be constructed without introducing extra packet switches. In addition, the high-bandwidth 2D-mesh is regarded as a new hierarchy that facilitates more flexible mapping of training workloads with mixed and heterogeneous parallelism strategies, which will be further illustrated in Section~\ref{chap09:sec:high-dimension}, \ref{chap09:sec:collective-algorithm}, and \ref{chap09:sec:mapping}.
+
+  \textbf{2) \textit{The nodes in RailX are connected to OCSes in a 2D organization rather than the centralized switching layer.}} One advantage of \textit{TPUv4} jointly connecting all cubes is to support the twisted Torus topology, which has a better bisection bandwidth. However, a better solution is proposed to provide a much higher bisection bandwidth; therefore, twisted Torus is not necessary so that different rows and columns can be interconnected separately to achieve high scalability. The total number of chips ($N$) and optical circuit switches ($N_s$) in \textit{RailX} is:
+  \begin{equation}
+    \left\{
+    \begin{array}{l}
+      N = \left(\frac{R}{2}\right)^2m^2, \\
+      N_s = rR.
+    \end{array}
+    \right.
+  \end{equation}
+  With existing hardware technologies, the scale of \textit{RailX} can be more than 100K chips ($R=128$~\cite{Liu_LightwaveFabricsAtScale_2023} and $m=5$~\cite{Talpes_MicroarchitectureDOJOTeslas_2023}, then $N=102400$). Even with normal PCB-level integration, the scale can still be more than 100K chips with higher-radix optical switches (\textit{e.g.}, $R=320$~\cite{Patronas_OpticalSwitchingData_2025,_PhotonicOpticalCircuit_} and $m=2$). In comparison, the \textit{TPUv4} pod (OCS-based 3D-Torus) can only support as many as $N_\text{TPUv4}=\frac{R}{2}m^3$ chips, limited by the 1D centralized switching layer.
+
+  \subsection{Topology Configuration}
+  Similar to \textit{TPUv4}, the circuit switches are configured at the beginning of a large training job, and on-chip routers (low-radix packet switches) are used for routing under each specific configuration. Therefore, the switching latency, which is the most significant disadvantage of optical circuit switches, is negligible. More fine-grained and dynamic reconfiguration (\textit{e.g.}, reconfiguration during each iteration) is also possible, which is briefly introduced in Section~\ref{chap09:sec:fine-grained-switching}. 
+  
+  By configuring optical switches, different logical topologies, including Torus, Dragonfly~\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008}, and HyperX~\cite{Ahn_HyperXTopologyRouting_2009}, can be constructed and combined based on the interconnection method described in Section~\ref{chap09:sec:rail-ring}. The comparison of three base topologies is summarized in Table~\ref{tab:topology}.
+  Topology configurations are according to the workload, trading off among scalability, diameter, and bisection bandwidth. Besides these three based topologies, other existing topology optimization methods based on optical switching, such as \textit{TopoOpt}~\cite{Wang_TopoOptCooptimizingNetwork_2023}, can also be utilized.
+
+  \begin{table}[ht]
+    \centering
+    \caption{Comparison of different 2D topologies. \label{tab:topology}}
+    \begin{tabular}{cccc}
+      \toprule
+      \textbf{Topology} & \textbf{Torus}                 & \textbf{HyperX}  & \textbf{Dragonfly}        \\
+      \midrule
+      Scalability       & $\big( \frac{R}{2} \big)^2m^2$ & $(r$$+$$1)^2m^2$ & $(r$$+$$1)\frac{R}{2}m^2$ \\
+      % \hline
+      Diameter ($H_o$)  & $R$                            & $2 $             & $3$                       \\
+      % \hline
+      Bisection BW      & $\frac{16n}{Rm}$               & $\frac{2n}{m}$   & $\frac{2n}{m}$            \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+
+  \subsubsection{\bf 2D-Torus}
+  The Torus topology can be naturally constructed by connecting the X-rails and Y-rails into parallel rings, just like the \textit{TPUv4}. Since Torus only connects adjacent nodes, all nodes in the system can be connected into an entire $\frac{R}{2}m\times \frac{R}{2}m$ 2D-Torus. Though Torus provides optimal all-reduce bandwidth, the diameter is up to $R\left(H_o+(m-1)H_i\right)$, and the theoretical upper-bound throughput~\cite{Dally_PrinciplesPracticesInterconnection_2004} for all-to-all communication is only
+  \begin{equation}
+    T_\text{Torus} = \frac{2B_c}{N} = \frac{4Rmn}{\left(\frac{R}{2}\right)^2m^2} = \frac{16n}{Rm}
+  \end{equation}
+  per chip, significantly decreasing with the scale. Therefore, 2D-Torus is not suitable for complex workloads with non-ring-collective traffic (\textit{e.g.}, MOE model with all-to-all traffic in the EP dimension).
+
+  The workload mapping and collective algorithms of \textit{RailX-Torus} are different from the regular Torus, where each parallelism is aligned with dimension scales. Take the \textit{TPUv4} Pod slice with topology $8\times 16\times 16$ as an example, the tensor parallelism is 8-way mapped on the 8-scale dimension or 16-way mapped on a 16-scale dimension~\cite{Google_TPUV4Document_}. As for the \textit{RailX-Torus}, the high-bandwidth 2D-mesh can be utilized to apply hierarchical collectives~\cite{Cho_BlueConnectDecomposingAllreduce_2019} or as a high-bandwidth local dimension. Details will be illustrated in Section~\ref{chap09:sec:high-dimension} and \ref{chap09:sec:collective-algorithm}.
+
+  \begin{figure}[tb]
+    \centering
+    \includegraphics[width=0.8\linewidth]{../figures/2025SIGCOMM/HyperX.pdf}
+    \caption{2D-HyperX configuration of 25 nodes. 4 X-rails and 4 Y-rails are separately configured into ring-based all-to-all (as shown in Figure~\ref{chap09:fig:rail-interconnection}).\label{chap09:fig:hyperx}}
+  \end{figure}
+
+  \subsubsection{\bf 2D-HyperX}
+  The regular HyperX is a direct network of $S^D$ switches where switches belonging to the same dimension are fully connected~\cite{Ahn_HyperXTopologyRouting_2009}. For example, in an $S\times S$ HyperX, $S$ switches in each row and each column are all-to-all connected. Compared with the Torus, HyperX has a much shorter diameter (equals to the dimension number $D$) and a much higher bisection bandwidth.
+
+  Based on the interconnection method described in Section~\ref{chap09:sec:rail-ring}, ``switch-less'' HyperX can be constructed in the \textit{RailX}. As shown in Figure~\ref{chap09:fig:hyperx}, the X-rails and Y-rails are separately interconnected into rail-ring-based all-to-all (two direct links between every node pair in every dimension), forming a $(r+1) \times (r+1)$ 2D-HyperX. Different from the regular HyperX, there are no extra high-radix packet switches in the \textit{RailX-HyperX}, and there are two direct links between every node pair in every dimension.
+
+  The maximum scale of the RailX-2D-HyperX topology is $(r+1)^2m^2$, limited by the rail number per node. If $r$ is large enough (\textit{i.e.}, $r+1=\frac{R}{2}$), the entire system can be configured into a single 2D-HyperX. With advanced CPO technologies (\textit{e.g.}, Broadcom achieves 32 optical ports per chip edge~\cite{Mehta_AIComputeASIC_2024}), the rail number of a node can be even larger than the optical switch; thus there can be more physical channels between all-to-all pairs. All-to-all interconnection of $\frac{r}{a}+1$ nodes can be constructed by connecting every node pair with $2a$ rails.
+
+  For the maximum size, the bisection bandwidth for each HyperX row/column is up to $4\left(\frac{r+1}{2}\right)^2$. Thus, the bisection throughput for all-to-all communication is
+  \begin{equation}
+    T_\text{HyperX}  = \frac{2\times (r+1)\times 4\left(\frac{r+1}{2}\right)^2}{(r+1)^2m^2} \approx \frac{2n}{m}
+  \end{equation}
+  per chip, more scalable than the 2D-Torus. The evaluation results are shown in Section~\ref{chap09:sec:a2a-performance}. Besides, diameter of the 2D-HyperX is only $2H_o+(5m-6)H_i$ (details are shown in Section~\ref{chap09:sec:p2p-routing}), also much smaller than 2D-Torus.
+
+  \begin{figure}[tb]
+    \centering
+    \includegraphics[width=0.8\linewidth]{../figures/2025SIGCOMM/dragonfly.pdf}
+    \caption{Dragonfly configuration. Five nodes are locally all-to-all interconnected by four local rails, forming a group with 20 global rails; then, 21 groups are globally all-to-all interconnected. \label{chap09:fig:dragonfly}}
+  \end{figure}
+  \subsubsection{\bf Dragonfly}
+  The regular Dragonfly is another low-diameter topology where switches are locally fully connected within groups, and groups are also globally all-to-all interconnected. As shown in Figure~{\ref{chap09:fig:dragonfly}}, the local all-to-all connection of Dragonfly is the same as the first dimension of 2D-HyperX. However, for the second dimension (global interconnection), Dragonfly only connects one switch rather than all switches in each group to other groups. As a result, Dragonfly can support a much larger scale in case of very large circuit switch radix $R$ or very small rail number $r$.
+
+  A local all-to-all group, consisting of $r+1$ nodes, has $r(r+1)$ rails for global interconnection. Therefore, the total number of groups is $\min(r^2+r+1, R/2)$. Consequently, it is possible to use two different kinds of optical switches: fast low-radix switches (\textit{e.g.}, AWGR)\cite{Fu_FirstDemonstrationMonolithic_2021,Mellette_RealizingRotorNetPractical_2024,Clark_SynchronousSubnanosecondClock_2020} and slow high-radix switches~\cite{_PhotonicOpticalCircuit_, Liu_LightwaveFabricsAtScale_2023}. This chapter mainly discusses slow switching because it is more mature and practical. Specifically, if the local (Y) circuit switch radix is $R_l=2(r+1)$ and the global (X) circuit switch radix is $R_g=2[r(r+1)+1]$, the entire system can be configured into one single Dragonfly with $(r+1)(r^2+r+1)m^2$ chips. For the maximum size, the bisection throughput for all-to-all communication is
+  \begin{equation}
+    T_\text{Dragonfly}  = \frac{2\times (r+1)\frac{R}{2} \times r}{(r+1)\frac{R}{2}m^2} \approx \frac{2n}{m}
+  \end{equation}
+  per chip, the same as 2D-HyperX, also much scalable than 2D-Torus.
+
+  \begin{figure}[b]
+    \centering
+    \includegraphics[width=0.99\linewidth]{../figures/2025SIGCOMM/high-dimension.pdf}
+    \caption{High-dimensional heterogeneous topology ($4\times 3 \times 3 \times D \times P$) and the mapping of the training workload ($TP \times CP \times EP \times DP \times PP$). Each dimension is split into two dimensions (four dimensions in total). Tensor parallelism is mapped on the high-bandwidth 2D-mesh. Rails (one dimension) for expert parallelism are configured into all-to-all topology, and other rails (three dimensions) are configured into 3D-Torus. \label{chap09:fig:high-dimension}}
+  \end{figure}
+  \subsubsection{\bf High-dimensional heterogeneous topology} \label{chap09:sec:high-dimension}
+  As mentioned in Section~\ref{chap09:sec:torus-limitation}, high-dimensional heterogeneous parallelism is introduced for hyper-scale LLM training workloads; thus, the 2D topology is insufficient. Based on the second interconnection method described in Section~\ref{chap09:sec:rail-ring}, a high-dimensional topology can be constructed by splitting the rails of the two physical dimensions into multiple logical dimensions. As the example shown in Figure~{\ref{chap09:fig:high-dimension}}, the $r$ rails of each dimension are split into two groups with $\frac{r}{2}$ rails, and each rail group can be interconnected into Torus (unlimited scale) or rail-ring-based all-to-all (maximum scale $\frac{r}{2}+1$). As a result, by using $r=4$ nodes, a 5D network with $4\times 3 \times 3 \times D \times P$ chips can be constructed, where the $0$-th dimension is the 2D-mesh within the node, the $2$-rd dimension is all-to-all with scale $3$, and $1/3/4$-th dimension is Torus with scale $3/D/P$. The total scale of two split dimensions is still limited by the optical switch radix: $D\times P \leq \frac{R}{2}$. For balance purposes, the $n$ rails of each chip row/column are typically split with the same proportion; thus, all chips have the same direct bandwidth in each dimension. Alternatively, we can also take the entire node as a whole and unevenly split the rails. For example, the $2\times 2$ rails in Figure~\ref{chap09:fig:high-dimension} can be split into a $3:1$ proportion.
+  % That is to say, the two rails of one chip row/column belong to one single dimension.
+
+  According to the shape of workloads (number of communication dimensions and the traffic volume of each dimension), we can flexibly configure the topology and adjust the bandwidth of each dimension. For example, if the traffic volume of two dimensions are $V_1$ and $V_2$ respectively, the bandwidth can be adjusted by splitting the $n$ rails into $n_1$ and $n_2$ ports per rail group and minimize the total communication time $T_{Total}=\frac{V_1}{n_1} + \frac{V_2}{n_2}$ or the slowest time $T_{Slow}=\max(\frac{V_1}{n_1}, \frac{V_2}{n_2})$. If the communication of two dimensions is non-overlapped, all the bandwidth can be allocated to one dimension first and then to the other dimension by reconfiguring the optical switches. More details will be discussed in Section~{\ref{chap09:sec:mapping}}.
+
+  % As a result, a 5D network with $m^2\times \left(\frac{r}{2}+1\right)^3 \times P$ chips can be constructed, where $D_0$ is the 2D-mesh within the node, $D_1, D_2, D_3$ are all-to-all dimensions with scale $\left(\frac{r}{2}+1\right)$ per each, and $D_4$ is connected in Torus with scale $P$. 
+
+  % As shown in Figure~\ref{chap09:fig:partition}, according to the shape of workloads, the rails (ports) of the node can be split into different groups with different proportions. Then, each rail group can be interconnected to form the Torus or all-to-all topology. As a result, a high-dimensional heterogeneous topology is constructed. The scale and bandwidth of each dimension are flexible to match the workload shape. The traffic pattern, volume, and frequency of a specific parallelism example are shown in Table~\ref{tab:communication}. The tensor parallelism, which introduces massive communication, is mapped on the high-bandwidth 2D-mesh on the node. The expert parallelism, which introduces massive all-to-all communication, is mapped on a 2D-hyperX with higher bandwidth proportions. The context and data parallelism, which introduce relatively low traffic volume, are separately mapped to two dimensions with lower bandwidth proportions.
+
+
+
+  \subsubsection{\bf 2D-mesh as high-bandwidth virtual switch} \label{chap09:sec:high-bandwidth-mesh} All low-diameter topologies illustrated above are constructed by utilizing the 2D-mesh as high-radix switches~\cite{Chen_WaferscaleNetworkSwitches_2024}. As a result, extra intra-node traffic is introduced for inter-node communication. To prevent the 2D-mesh from becoming the bottleneck, the intra-node bandwidth is supposed to be larger. Estimated by the bisection bandwidth per port
+  \begin{equation}
+    \frac{2\times kmn}{4mn} > 1 \Rightarrow k > 2,
+  \end{equation}
+  the intra-node bandwidth of the 2D-mesh should be at least twice the inter-node bandwidth. According to the evaluations in Section~\ref{chap09:sec:a2a-performance}, $2\sim 4\times$ higher bandwidth is sufficient to provide non-blocking switching capability, which is easy to achieve by using short-reach direct links.
+
+  % the global saturation throughput (injection rate) $T_\text{global}$ of the switch-less Dragonfly can be estimated by the bisection bandwidth $B_C$ and the topology:
+  % \begin{equation}
+  %   \label{eq:global}
+  %   \begin{aligned}
+  %     T_\text{D, G} & < \frac{2B_C}{N} = \frac{g/2 \times 2dr/2 \times 4}{dgm^2} = \frac{2n}{m}
+  %   \end{aligned}
+  % \end{equation}
+
+  % \begin{equation}
+  %   T_\text{X, G}  < \frac{dg/2 \times 2r/2 \times 4}{dgm^2} = \frac{2n}{m}
+  % \end{equation}
+
+  % The local intra-W-group saturation injection rate $T_\text{local, D}$ can be estimated as Equation (\ref{eq:local}):
+  % \begin{equation}
+  %   \label{eq:local}
+  %   T_\text{L}  < \frac{d/2 \times 2r/2 \times 4}{dm^2} = \frac{2n}{m}
+  % \end{equation}
+
+  % \begin{figure}[th]
+  %   \centering
+  %   \includegraphics[width=0.95\linewidth]{../figures/2025SIGCOMM/dimension-partition.pdf}
+  %   \caption{Dimension splitting and expansion of 2D-mesh. (a) 2D-mesh nodes can be naturally interconnected into 2D-Torus with uniform bandwidth in each dimension. (b) One of the original dimension (blue ports) is split into two dimensions, and the new dimension (red ports) can also form rings. As a result, 3D-Torus with $1:1:2$ bandwidth is constructed. \label{chap09:fig:dimension-partition}}
+  % \end{figure}
+
+  \section{Communication Algorithms}
+
+  Due to the good features of rail-ring-based all-to-all interconnection, many existing algorithms can be borrowed from Torus, Dragonfly, HyperX, and HammingMesh topologies. The major difference is the high-bandwidth local 2D-mesh, which brings benefits but also introduces routing challenges.
+
+  \subsection{Point-to-Point Routing}
+  \label{chap09:sec:p2p-routing}
+
+  \subsubsection{\bf Minimal-Routing} Minimal routing algorithms on RailX-based HyperX are similar to traditional HyperX~\cite{Ahn_HyperXTopologyRouting_2009, McDonald_PracticalEfficientIncremental_2019}, but extra routing hops are required over the local 2D-mesh. Two minimal routes from source node $(0,4)$ to destination node $(4,0)$ are drawn in Figure~\ref{chap09:fig:routing}: messages traverse to node $(0,0)$ or $(4,4)$ first and then to node $(4,0)$. Since nodes are connected by two links on both mesh sides (see Figure~\ref{chap09:fig:hyperx}), if we always choose the nearest inter-node link when routing on 2D-mesh, a packet travels at most $(\frac{m}{2}-1)+(m-1)$ internal hops at each non-destination node and at most $2(m-1)$ internal hops at the destination node. Therefore, the diameter of the 2D-HyperX is no more than $2H_o+(5m-6)H_i$. The on-mesh routing algorithm can be deterministic or adaptive (\textit{e.g.}, dimension-order or north-last~\cite{Glass_TurnModelAdaptive_1992}) based on one single virtual channel (VC). As long as the VC increases at each node hop along the routes, any deterministic or adaptive minimal routing algorithm on HyperX is deadlock-free. A specific example is given in Algorithm~\ref{alg:deterministic}, where $(X,Y)$ and $(x,y)$ are the node coordinate in 2D-HyperX and the chip coordinate in 2D-mesh, respectively. For other topology configurations, similar methods can be applied, and the required VC number for deadlock-free minimal routing equals the inter-node diameter ($d_o$) plus one.
+
+  \begin{figure}[tb]
+    \centering
+    \includegraphics[width=0.9\linewidth]{../figures/2025SIGCOMM/routing.pdf}
+    \caption{Minimal and non-minimal adaptive routing from $(0,4)$ to $(4,0)$ on 2D-HyperX. The solid arrows represent minimal routing, which follows the shortest possible path between the source and the destination. The dashed lines represent non-minimal routing to avoid congested or failed links, which are marked with red "X" symbols. Due to the good features of RailX, the Torus routing algorithm can be utilized. \label{chap09:fig:routing}}
+  \end{figure}
+  
+\begin{figure}[htb]
+\centering
+\begin{minipage}{.6\linewidth}
+\begin{algorithm}[H]
+    \begin{algorithmic}[1]
+      \REQUIRE Current chip coordinate: $(X_c, Y_c, x_c, y_c)$;\\
+      \quad Destination chip coordinate: $(X_d, Y_d, x_d, y_d)$.
+      \IF[Arriving Destination]{$X_c = X_d$ \& $Y_c = Y_d$}
+      \STATE {\scshape Routing-on-Mesh$(x_c, y_c, x_d, y_d)$} by VC-2
+      \ELSIF[X-Rail-First]{$X_c \neq X_d$}
+      \STATE $(x', y') \leftarrow$ the nearest chip links to $(X_d, Y_c)$
+      \IF{$(x_c, y_c)=(x',y')$}
+      \STATE {\scshape X-Rail$(X_c, X_d)$} by VC-1
+      \ELSIF{$(x_c, y_c)\neq(x',y')$}
+      \STATE {\scshape Routing-on-Mesh$(x_c, y_c, x', y')$} by VC-0
+      \ENDIF
+      \ELSIF{$X_c = X_d$ \& $Y_c \neq Y_d$}
+      \STATE $(x'', y'') \leftarrow$ the nearest chip links to $(X_d, Y_d)$
+      \IF{$(x_c, y_c)=(x'',y'')$}
+      \STATE {\scshape Y-Rail$(Y_c, Y_d)$} by VC-2
+      \ELSIF{$(x_c, y_c)\neq(x'',y'')$}
+      \STATE {\scshape Routing-on-Mesh$(x_c, y_c, x'', y'')$} by VC-1
+      \ENDIF
+      \ENDIF
+    \end{algorithmic}
+    \caption{\scshape Deterministic Minimal Routing \label{alg:deterministic}}
+  \end{algorithm}
+\end{minipage}
+\end{figure}
+
+  \subsubsection{\bf Non-minimal Adaptive Routing} For any non-minimal routing algorithm, the same method as the minimal routing can always be adopted: increasing VC at each node hop along the routes. However, the required VC number is as many as the length of the longest route.
+
+  Due to the good features of rail-ring-based interconnection (2D-rings), the Torus routing algorithm can be leveraged to achieve deadlock-free non-minimal routing on RailX with fewer VCs. Previous studies have shown that only two VCs are required for deadlock-free XY routing on 2D-Torus~\cite{Dally_PrinciplesPracticesInterconnection_2004}, and only one single VC is sufficient if using \textit{Bubble} flow-control techniques~\cite{Puente_AdaptiveBubbleRouter_2001,LizhongChen_WormBubbleFlowControl_2013}. The basic idea is to fully utilize each VC by using XY-routing-based Torus virtual networks where packets are routed along the X-rail and then the Y-rail. As shown in Figure~\ref{chap09:fig:routing}, packets use VC-0 at the source node $(0,4)$ and then increase to VC-1 at the intermediate node $(4,4)$. If the direct channel between $(4,4)$ and $(4,0)$ is congested, adaptive misrouting can be performed. As long as the packet follows the XY-routing algorithm on Torus, it can be freely routed in the VC-1 network. In the figure, the packet is routed to node $(1,4)$ along the X-rail-0 and then routed to node $(1,0)$ along the Y-rail-1. Once the packet wants to change to X-rails, which violates the XY-routing algorithm, it must increase to VC-2. Finally, it is routed to the destination at node $(4,0)$ through VC-3. With this method, limited times ($a>d_o$) of free routing and infinite times of Torus routing are combined to achieve deadlock-free non-minimal routing on RailX with a limited number ($a+1$) of VCs.
+
+  % \subsubsection{\bf Fault-Tolerant Routing} Reliability and availability are essential for large-scale training systems.
+
+  \subsection{Collective Communication Algorithm}
+  \label{chap09:sec:collective-algorithm}
+  For AI training workloads, \textit{Ring All-Reduce} algorithms, which equals to one \textit{Reduce-Scatter} followed by one \textit{All-Gather}, are essential. Due to the rail-ring-based interconnection, existing collective algorithms on Torus such as \textit{Ring}~\cite{AndrewGibiansky_BringingHPCTechniques_2017} and \textit{Swing}~{\cite{Sensi_SwingShortcuttingRings_2024}} can be directly applied to RailX topology. The communication time of the bidirectional-ring-based Reduce-scatter and All-gather algorithm can be estimated as~\cite{Cho_BlueConnectDecomposingAllreduce_2019}
+  \begin{equation}
+    T_R (p, V, B) = (p-1)\alpha + \frac{p-1}{p}\frac{V}{2B},
+  \end{equation}
+  where $p$ is the number of processors, $\alpha$ is the step (hop) latency, $V$ is the data volume, and $B$ is the bandwidth.
+
+  The 2D-ring-based algorithm on the RailX network splits data into two chunks and simultaneously executes the hierarchical algorithm~\cite{Cho_BlueConnectDecomposingAllreduce_2019} in both X and Y dimensions~\cite{Hoefler_HammingMeshNetworkTopology_2022, Rashidi_ThemisNetworkBandwidthaware_2022}. Therefore, the communication time of the 2D-ring-based All-Reduce algorithm on the $m^2 \times p\times p$ RailX (2D-Torus or 2D-HyperX) can be estimated as \footnote{$\approx$: we omit lower order term $o(p)$ and on-package hop latency}
+  \begin{equation}
+    \begin{aligned} T_\text{2D-Ring} & = 2\left[T_R\left(mp, \frac{V}{2}, nB\right)+T_R\left(mp, \frac{V}{2mp}, nB\right)\right] \\[-2pt]
+                % & = 4(mp-1)\alpha + \frac{(mp)^2-1}{(mp)^2}\frac{V}{2nB}              \\[-2pt]
+                                 & \approx 4mp\alpha + \frac{V}{2nB},
+    \end{aligned}
+  \end{equation}
+  where $\alpha$ is the inter-node optical hop latency, $nB$ is the total bandwidth per chip edge. Though many of the hops along the ring are on-package hops, the total communication time is limited by the slowest hop, \textit{i.e.}, the inter-node hop.
+  % $$2\left[(p\alpha + \frac{V/2}{2nB}) + (p\alpha + \frac{V/2p}{2nB})\right]$$
+
+  \begin{figure}[tb]
+    \centering
+    \includegraphics[width=0.7\linewidth]{../figures/2025SIGCOMM/collective.pdf}
+    \caption{Hierarchical All-Reduce algorithm on RailX. (a) Bidirectional-ring-based All-Reduce on local 2D-mesh. (b) 2D-ring-based All-Reduce.  \label{chap09:fig:collective}}
+  \end{figure}
+
+  \label{chap09:sec:hierarchical-allreduce}
+  To fully leverage the high on-package bandwidth in RailX, a hierarchical All-Reduce algorithm is presented. As shown in Figure~\ref{chap09:fig:collective}(a), we can first perform local All-Reduce algorithms~\cite{Luczynski_NearOptimalWaferScaleReduce_2024, Kumar_HighlyAvailableData_2020} (\textit{e.g.}, bidirectional ring\cite{Laskar_EnhancingCollectiveCommunication_2024}) over the high-bandwidth 2D-mesh. Then, as shown in Figure~\ref{chap09:fig:collective}(b), global All-Reduce is performed. All the chips with the same local rank ID are still connected by the same X/Y-rail, and the inter-node bandwidth is shared by $m$ chips (local ranks) along the rail. The communication time of the hierarchical All-Reduce algorithm on the $m^2 \times p \times p$ RailX network is estimated as
+  \begin{equation}
+    \begin{aligned}
+      T_\text{RailX} & \approx 2\times\frac{V}{2\boldsymbol{k}nB} + \left(4p\alpha + \frac{V/\boldsymbol{m^2}}{2nB/\boldsymbol{m}} \right) \\[-2pt]
+                     & = 4p\alpha + \left(\frac{2}{k}+\frac{1}{m}\right)\frac{V}{2nB},
+    \end{aligned}
+  \end{equation}
+  where $k$ is the multiple of on-package bandwidth (in local 2D-mesh) over off-package bandwidth. It is shown that the on-package bandwidth is utilized, and only $p$ rather than $mp$ inter-node steps are required. Typically, as long as $k>2$, the hierarchical algorithm on RailX achieves better global All-Reduce performance than the traditional 2D-ring-based algorithms. The evaluation results are shown in Section~\ref{chap09:sec:all-reduce-performane}. The all-to-all interconnection in HyperX configuration can also be utilized to achieve a lower-latency All-Reduce algorithm, whose latency does not increase with the scale $p$.
+
+  As for specific mapping of training workloads, if the tensor parallelism is mapped on the high-bandwidth 2D-mesh, which is the typical mapping, the communication of other parallelisms (\textit{e.g.}, data parallelism) is among chips in different nodes with same local rank ID, and the inter-node bandwidth is shared by $m$ chips. Therefore, the communication time of 1D (among $p$ nodes) and 2D (among $p\times p$ nodes) node-level All-Reduce algorithm is estimated as
+
+  \begin{equation}
+    % \left\{
+    % \begin{aligned}
+    T_{1D} \approx 2p\alpha + \frac{V}{nB/m},\; T_{2D} \approx 4p\alpha + \frac{V}{2nB/m}.
+    % \end{aligned}
+    % \right.
+  \end{equation}
+  As mentioned in Section~\ref{chap09:sec:high-dimension}, the rails of the two physical dimensions are split to construct high-dimensional logical topologies. Collective communication may be performed among multiple dimensions. For example, the communication of QKV layers (non-expert layers) data parallelism is among CP/EP/DP dimensions. Similar methods can be adopted for high-dimensional All-Reduce over high-dimensional topologies, and we denote the communication time by $T_{h\text{D}}(n_1, ..., n_{h})$, where $n_i\times B$ is the bandwidth of dimension $i$. Besides our algorithms, there are other fine-grained collective scheduling algorithms~\cite{Shah_TACCLGuidingCollective_2023, Liu_RethinkingMachineLearning_2024,Wu_MCCSServicebasedApproach_2024, Won_TACOSTopologyAwareCollective_2024, Rashidi_ThemisNetworkBandwidthaware_2022, Rajasekaran_CASSININetworkAwareJob_2024} that can be applied. 
+
+  % can be implemented by doing collectives in each dimension one by one. The communication time of $i-$th stage (dimension) is
+  % \begin{equation}
+  %   T_i = p_i\alpha_i + \frac{p_i-1}{\prod_{j=0}^{i}p_j}\frac{V}{B_i},
+  % \end{equation}
+  % where $\alpha_i$, $p_i$, and $B_i$ are the hop latency, processor number, and bandwidth of dimension $i$. To fully utilize the bandwidth, the data $V$ is split into $n$ chunks ($V_0,..., V_{n-1}$) and simultaneously sent into all $n$ dimensions to make all dimensions busy. However, if the bandwidth and scale of each dimension are different, the communication time of each dimension is different, so the chunk scheduling is a complex problem. In this chapter, we use a simple method to schedule: at each stage, each of $n$ chunks completes one of all dimensions, and the entire collective communication finishes through $n$ stages. For example, chunk $0$, $1$, and $2$ go through $3$ dimensions in the order of $0$-$1$-$2$, $1$-$2$-$0$, and $2$-$0$-$1$, separately.
+
+  % The communication time of each stage $i$ is the maximum value of the time of all chunks: $T_i=\max_{0\leq j < n}\{T_{j, i}\}$, and the total communication time is $T=\sum_{i=0}^{n-1}T_i$. Since the first stage has the largest communication volume, we balance the traffic of each chunk by splitting the data volume ($V_j$) proportional to the bandwidth of the first dimension of each chunk ($B_{j,0}$). As a result, all chunks finish their first stage almost at the same time ($V_j/B_{j,0} \approx V/\sum_{k=0}^{n-1}B_{k,0}$). For example, 2D algorithm can be implemented by splitting data into two chunks with volume $V_1=\frac{B_1}{B_1+B_2}V$ and $V_2=\frac{B_2}{B_1+B_2}V$. So, the total communication time of 2D algorithm is
+  % \begin{equation}
+  %   \begin{aligned}
+  %     T = & \max\{p_1, p_2\}\alpha +\frac{V}{B_1+B_2}                                                 \\
+  %     +   & \max\{p_2\alpha+\frac{B_1V}{p_1B_2(B_1+B_2)}, p_1\alpha + \frac{B_2V}{p_2B_1(B_1+B_2)}\}.
+  %   \end{aligned}
+  % \end{equation}
+  % If $\frac{p_1}{p_2}=\frac{B_1^2}{B_2^2}$, then
+  % \begin{equation}
+  %   T = 2\max\{p_1, p_2\}\alpha + (1+\frac{1}{\sqrt{p_1p_2}})\frac{V}{B_1+B_2}.
+  % \end{equation}
+
+
+  \section{Mapping and Scheduling}
+  \label{chap09:sec:mapping}
+
+  \begin{figure}[t]
+    \centering
+    \includegraphics[width=0.7\linewidth]{../figures/2025SIGCOMM/expert-parallelism.pdf}
+    \caption{Expert parallelism. Communication occurs between devices to route input tokens to their assigned experts (all-to-all for dispatching) and then gather the processed outputs (all-to-all for combining). \label{chap09:fig:expert-parallelism}}
+  \end{figure}
+
+  4D parallelism (TP, CP, PP, DP) is used to train the latest Llama 3 405B model~\cite{Dubey_Llama3Herd_2024}. On this basis, a larger-scale model with the MOE structure and expert parallelism (EP) over the expert (FFN) layers is considered~\cite{Rajbhandari_DeepSpeedMoE_2022,Zhu_LLaMAMoEBuildingMixtureofExperts_2024,Ishii_NvlinkNetworkSwitchNvidias_2022,Singh_HybridTensorExpertDataParallelism_2023,DeepSeek-AI_DeepSeekV3TechnicalReport_2024}. For simplicity's sake, we assume both the attention and FFN layers adopt the same TP, CP, and PP scale. Therefore, as shown in Figure~{\ref{chap09:fig:expert-parallelism}}, the DP scale of attention layers equals the total scale of DP and EP of FFN layers ($D_a=ED_e$). The order of parallelism dimensions is $[T, C, E, D_e, P]$, where the innermost tensor parallelism usually introduces the most massive communication traffic. One mapping example is illustrated in Section~\ref{chap09:sec:high-dimension}. Many existing scheduling methods, such as \textit{CASSINI}~\cite{Rajasekaran_CASSININetworkAwareJob_2024}, can be borrowed for mapping and scheduling on \textit{RailX}. Limited by the space, this chapter only focuses on the bandwidth allocation scheduling for the \textit{Dimension Spliting} method.
+
+
+  \subsection{Static Allocation}
+  \label{chap09:sec:bandwidth-allocation}
+  As discussed in Section~\ref{chap09:sec:high-dimension}, the rails of each node are split into multiple dimensions according to the shape of workloads. The static allocation is to configure the network topology at the beginning of a training job and not reconfigure within training iterations, which is a common way with ``slow-switching'' OCSes~\cite{Liu_LightwaveFabricsAtScale_2023, Wang_TopoOptCooptimizingNetwork_2023}.
+
+  In practice, the factors affecting real efficiency are very complex. Besides the communication efficiency, the computation efficiency and the communication-computation overlap are also important. A highly generalized expression
+  \begin{equation}
+    T_\text{Actual} \approx T_\text{Comp} + \max\left\{T_\text{Comp}^*, T_\text{Comm}^*\right\} + T_\text{Comm}
+  \end{equation}
+  is used to estimate the total time, where $T_\text{Comp}$/$T_\text{Comm}$ is the computation/communication time that cannot be overlapped, $T_\text{Comp}^*$/$T_\text{Comm}^*$ is the time that can be overlapped. As shown in the example shown in Figure~\ref{chap09:fig:high-dimension}, if the bandwidth is split for DP and PP ($n=n_d+n_p$), both of which can be overlapped, the actual total time we want to minimize is
+  \begin{equation}
+    \text{arg}\min_{n_d,n_p} \left\{\max\left(T_{\text{Comp},d}^*,\frac{V_d}{2n_dB}\right)+\max\left(T_{\text{Comp},p}^*,\frac{V_p}{2n_PB}\right)\right\},
+  \end{equation}
+  where, $V$ is the data volume of each parallelism, and $B$ is the bandwidth per each port.
+
+  During the entire training process, the mapping strategies and bandwidth allocation can still be adjusted. For example, in Llama 3 405B training, the context length gradually increases from 8K to 128K in six stages~\cite{Dubey_Llama3Herd_2024}, and the context parallelism is introduced only for long context length. Therefore, the bandwidth allocation may also be adjusted when the parallelism and mapping change. However, such adjustments are not frequent, so they are still regarded as static allocations. Exploration results are shown in Section~\ref{chap09:sec:dimension-splitting-results}.
+
+  \subsection{Dynamic Allocation}
+  \label{chap09:sec:fine-grained-switching} Based on static allocation, which splits the bandwidth of one physical dimension into two logical dimensions in a fixed way, the optimal scheme tends to map the highest and lowest communication to one dimension. \textit{E.g.}, if the communication requirement is $EP>CP>DP>PP$, the optimal allocation is to map the EP and PP to one physical dimension and the CP and DP to the other physical dimension.
+
+  \begin{figure}[b]
+    \centering
+    \includegraphics[width=0.8\linewidth]{../figures/2025SIGCOMM/CP-EP.pdf}
+    \caption{Circuit switching to allocate all bandwidth between context parallelism and expert parallelism. \label{chap09:fig:cp-ep}}
+  \end{figure}
+
+  However, if the two communications are separated by other communication or computation, circuit switching can be used to allocate the bandwidth dynamically. As shown in Figure~\ref{chap09:fig:cp-ep}, CP and EP communications are non-overlapped. They are separated by the computation of attention input/output projection, the communication of SP/TP, and the pre/post-process of MOE layers~\cite{NVIDIA_MegatronLM_2025,NVIDIA_ContextParallelismOverview_}. The time interval is about a few milliseconds for the small-scale model and can be longer for larger models. Therefore, it is possible to dynamically configure the circuit switch and allocate the bandwidth for CP and EP communications. As a result, both CP and EP communications can fully utilize the bandwidth of one entire physical dimension.
+
+  \section{Evaluation}
+
+  \subsection{Methodology}
+
+  A cycle-based network simulator and a hardware-validated analytical model are used to evaluate \textit{RailX}.
+
+  \subsubsection{\bf Analytical Model and Trace Synthesis} Due to the impracticality of collecting real traces from extreme-scale AI training workloads, a hardware-validated analytical model is built to give estimates of the computation and communication. To validate the analytical model, training workloads are conducted with small-scale hybrid parallelism on real hardware and collect the trace by using NVIDIA Nsight Systems~\cite{NVIDIA_NVIDIANsightSystems_}. The computation time of larger tiles/blocks is estimated based on the computing FLOPS (multiples of FLOPS $\times$ measured time of small tiles/blocks). The volume and scopes of major communication are directly extracted from the training framework and validated by the Nsight traces.
+
+  \subsubsection{\bf Cycle-based Simulator} CNSim is used to evaluate the communication performance of \textit{RailX}. To simplify and accelerate the simulation, we omit complex network protocols and use the ideal virtual cut-through router and the credit-based lossless flow control~\cite{Dally_PrinciplesPracticesInterconnection_2004}. The bandwidth of the slowest link (inter-node link) in the network is normalized to 1 flit/cycle (\textit{e.g.,} 64 Gb/s bandwidth at 8B flit size and 1GHz frequency), and the on-chip/intra-node link bandwidth is $k$ multiples. The default input buffer size per virtual channel of the router is 16 flits (\textit{i.e.,} maximum message size). The evaluated traffic patterns are synthesized by the hardware-validated analytical model. The inter-node latency is set to 10 cycles, while the intra-node latency is set to 1 cycle. 
+
+  \subsection{Cost Analysis}\
+  \label{chap09:sec:cost-analysis}
+  The cost of several typical systems is compared: 1) non-blocking/tapered Fat-Tree; 2) HammingMesh (Hx$a$Mesh with $a$$\times$$a$ boards) ; 3) 3D-Torus without OCS; 4) TPUv4 (OCS-based 3D-Torus); 5) 2D Fat-Tree (Rail-Only~\cite{Wang_RailonlyLowCostHighPerformance_2024}); 6) RailX$a$Mesh. For a fair comparison, it is assumed that all chips have 1.8TB/s (36$\times$400G) off-package bandwidth; specifically, 36 rails for Fat-Tree, 18 rails for 2D Fat-Tree, 9 planes for HammingMesh, 6 ports per direction for 3D-Torus, and $n=9$ rails per chip for RailX. Short-reach package/PCB-level connectivity is used for 2D-mesh; passive copper cables (PCCs) are used for 3D-cube (inter $2\times2$ mesh boards~\cite{Jouppi_TPUV4Optically_2023}); and active optical cables are used for inter-mesh/cube/switch connections. The cost is estimated based on the components, and it is assumed that OCS has twice as many ports as electrical packet switches at the same cost~\cite{Patronas_OpticalSwitchingData_2025,Poutievski_JupiterEvolvingTransforming_2022,Liu_LightwaveFabricsAtScale_2023,Wang_TopoOptCooptimizingNetwork_2023,Urata_MissionApolloLanding_2022}. A passive 400G copper cables costs \$250~\cite{_NVIDIAPassiveCopper_}, an 400G active optical transceiver (AOT) costs \$1000~\cite{_NVIDIA800GbTwinPort_, Gherghescu_IveGot99_2024,Gherghescu_LookTrainingLarge_2024}, a 64-port 400G packet switch or a 128-port OCS costs \$35K~\cite{_MellanoxQuantum2QM9700_}. The cost of short-reach package/PCB-level connectivity is neglected (included in chips). It should be noted that, with $n=9$, $m=7$ results in $r=63$ to match the OCS radix $R/2=64$.
+
+\begin{table}[tb]
+  \centering
+  \caption{Scalability/cost comparison (packet/circuit switch radix is 64/128). \label{tab:cost}}
+  \begin{tabular}{lccccc}
+    \toprule
+    \textbf{Topology} & \textbf{Scale}  & \textbf{Cost}  & \textbf{Cost}                      & \textbf{Glob. BW}    & \textbf{Cost}                      \\
+                      & \textbf{[\#]}   & \textbf{[M\$]} & \textbf{[\,/\,Inject]}             & \textbf{[\% Inject]} & \textbf{[\,/\,GBW]}                \\
+    \midrule
+    2-Tier FT         & 2048            & 415.9          & 1$\times$                          & 100                  & 1$\times$                          \\
+    1:3 Tap. FT       & 3072            & 395.7          & 0.65$\times$                       & 33.3                 & 1.90$\times$                       \\
+    1-FT Hx4Mesh      & 16384           & 375.6          & 0.11$\times$                       & 12.5                 & 0.90$\times$                       \\
+    1-FT Hx7Mesh      & 50176           & 657.2          & 0.06$\times$                       & 7.1                  & 0.91$\times$                       \\
+    TPUv4             & 4096            & 185.7          & 0.22$\times$                       & 4.2                  & 5.52$\times$                       \\
+    3D-Torus          & 4096            & 45.0           & 0.05$\times$                       & 4.2                  & 1.46$\times$                       \\
+    2D 1-FT         & 4096            & 375.6          & 0.45$\times$                       & 50                   & 0.90$\times$                       \\
+    \midrule
+    RailX4Mesh        & 65536           & 751.1          & 0.06$\times$                       & 12.5                 & \textbf{0.45}$\boldsymbol{\times}$ \\
+    RailX7Mesh        & \textbf{200704} & 1314.4         & \textbf{0.03}$\boldsymbol{\times}$ & 7.1                  & \textbf{0.45}$\boldsymbol{\times}$ \\
+    \midrule
+    4-Tier FT         & 196608          & 83718          & 2.10$\times$                       & 100                  & 2.10$\times$                       \\
+    49:7:1 Tap. FT    & 200704          & 22052          & 0.54$\times$                       & 2.0                  & 26.5$\times$                       \\
+    2-FT Hx7Mesh      & 200704          & 5822           & 0.14$\times$                       & 7.1                  & 2.01$\times$                       \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The results are shown in Table~\ref{tab:cost}, where the upper part is evaluated at maximum or original scale, and the lower part is evaluated at uniform scale ($\sim$200K chips). The cost per injection bandwidth approximates the cost per All-Reduce bandwidth. Compared with Torus, RailX uses high-bandwidth 2D-mesh to eliminate all the copper cables and significantly improve the bisection bandwidth. Compared with the Fat-Tree, RailX achieves the same All-Reduce bandwidth at less than $10\%$ cost. Compared with HammingMesh, which is the previous SOTA topology, RailX uses optical switching to reduce half of the cost while maintaining the throughput and improving the scalability.
+
+\subsection{All-to-All Performance}
+\label{chap09:sec:a2a-performance}
+The all-to-all performance of \textit{RailX-2D-HyperX} ($m=4, n=2, N=1296$) and other topologies are simulated. All topologies have around 1.3K chips, and each chip has 8 ports (\textit{i.e.,} 8 flits/cycle/chip injection bandwidth). As shown in Figure~\ref{chap09:fig:all-to-all}(a), \textit{RailX} achieves 0.8 flits/cycle/chip throughput, which is close to the theoretical maximum throughput of 1 flits/cycle/chip. Compared with all other topologies, \textit{RailX} achieves the most cost-effective all-to-all throughput. Compared with HammingMesh, \textit{RailX} adopts higher intra-mesh bandwidth and eliminates the packet switches, thus achieving higher actual throughput and lower latency.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.9\linewidth]{../figures/2025SIGCOMM/all-to-all.pdf}
+  \caption{All-to-all performance. (a) Different topologies with ~1.3K chips; (b) \textit{RailX} with different intra-mesh bandwidth ($k$ times the inter-node bandwidth). \label{chap09:fig:all-to-all}}
+\end{figure}
+
+As analyzed in Section~\ref{chap09:sec:high-bandwidth-mesh}, the intra-mesh bandwidth is essential for \textit{RailX} as the 2D-mesh is utilized as a virtual switch. The performance with different internal bandwidths is evaluated. As shown in Figure~\ref{chap09:fig:all-to-all}(b), if the internal bandwidth is the same as the external bandwidth, the performance is poor because the 2D-mesh becomes the bottleneck. With 2$\times$ internal bandwidth, the performance is significantly improved and close to the theoretical maximum throughput. Higher internal bandwidths do not bring significant improvement, as the external bandwidth becomes the bottleneck.
+
+\subsection{All-Reduce Performance}
+\label{chap09:sec:all-reduce-performane}
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2025SIGCOMM/all-reduce.pdf}
+  \caption{All-Reduce performance. It is assumed that each chip has four bidirectional ports, and all algorithms/topologies fully utilize these four ports. \label{chap09:fig:all-reduce}}
+\end{figure}
+
+The All-Reduce performance of \textit{RailX} is also evaluated. 1D-ring, 2D-Torus~\cite{Hoefler_HammingMeshNetworkTopology_2022}, and hierarchical-2D-Torus algorithm presented in Section~\ref{chap09:sec:hierarchical-allreduce} are evaluated with different scales and sizes. It is assumed that each chip has four ports (double bandwidth for the 1D-ring), the external bandwidth is set to $100$GB/s per port, and the internal bandwidth is set to $400$GB/s per port (\textit{i.e.,} $200$GB/s for 1D-ring All-Reduce on 2D-mesh). The latency is set to $300$ns per external hop~\cite{Sensi_SwingShortcuttingRings_2024} and $10$ns per internal hop.
+
+As shown in Figure~\ref{chap09:fig:all-reduce}, the hierarchical-2D-Torus algorithm on RailX always achieves the best performance (shortest time to finish). For large-size All-Reduce, since all algorithms are near bandwidth-optimal, they achieve similar performance. For small-size All-Reduce, the 1D-ring algorithm has the worst performance, and the hierarchical-2D-Torus algorithm outperforms the 2D-Torus algorithm, especially at hyper-scale.
+
+
+\subsection{Bandwidth Allocation Exploration}
+As discussed in Section~\ref{chap09:sec:bandwidth-allocation}, the bandwidth of one physical dimension is allocated to two parallelism dimensions according to the communication volume and the overlap with computation. The results of allocation (10 ports in total) between DP and CP with different sequence lengths are shown in Figure~\ref{chap09:fig:static-allocation}, where the actual communication times under different allocation proportions are measured. For small-scale sequence length, the CP communication is relatively small; therefore, the optimal policy is to allocate more bandwidth to DP. As the sequence length increases, the CP communication rises; thus, the optimal policy tends to allocate more bandwidth to CP. After considering the computation/communication overlap of DP, the optimal policy tends to allocate even more bandwidth to CP. In summary, optical switching with the \textit{dimension-splitting} method provides flexibility to adjust the bandwidth of each parallelism dimension for different configurations.
+
+
+\label{chap09:sec:dimension-splitting-results}
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2025SIGCOMM/static-allocation.pdf}
+  \caption{Different sequence length and computation-communication overlap introduce different bandwidth allocation strategies. \label{chap09:fig:static-allocation}}
+\end{figure}
+
+\subsection{Reliability and Availability}
+
+Similar to TPUv4~\cite{Zu_ResiliencyScaleManaging_2024}, \textit{RailX} also gains reliability and availability benefits from bypassing failure nodes with OCS configurability. However, due to the 2D organization, a failure node will cause the row and the column to be disconnected, which is similar to the \textit{HammingMesh}~\cite{Hoefler_HammingMeshNetworkTopology_2022}. By using a proper allocation policy, all nodes can be fully utilized in \textit{ML-as-a-service (MLaaS)} scenario.
+
+However, when using the entire system for one single job, there is no optimization room for utilizing disconnected nodes; therefore, the failure nodes will significantly affect availability. In the best case, all failure nodes are in the same row or column; we only lose one row or one column of nodes; in the worst case, the failure nodes (\textit{e.g.}, $2a$) are distributed in different rows and columns; as a result, the maximum allocation for a single job is $(R/2-a)\times(R/2-a)$. For general cases, the maximum allocation is an NP-hard problem; however, since the failures are sparse, a fast algorithm can be used to find the maximum allocation.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.9\linewidth]{../figures/2025SIGCOMM/availability.pdf}
+  \caption{Availability of single allocation with OCS configurability. (a) Maximum size for a single job with faulted nodes; (b) Availability at failure rates. \label{chap09:fig:availability}}
+\end{figure}
+
+In evaluation, random nodes are selected as failure nodes, and the maximum allocation is calculated for a single job. 100 random samples are used for each failure rate, and the average is calculated. As shown in Figure~\ref{chap09:fig:availability}(a), the maximum available size decreases linearly with the number of failure nodes, and the average size is significantly better than the worst case when the failure rate is high. As shown in Figure~\ref{chap09:fig:availability}(b), with the same failure rate, the large-scale \textit{RailX} has worse availability than the small-scale \textit{RailX}. Considering a typical failure rate of 0.1\%~\cite{Zu_ResiliencyScaleManaging_2024}, the availability is always more than 90\%, which is acceptable for large-scale training systems.
+
+% \section{Related Works}
+% \textit{HammingMesh} also leverages local 2D-mesh networks, providing high All-Reduce bandwidth at a low cost~{\cite{Hoefler_HammingMeshNetworkTopology_2022}}. From the topology perspective, \textit{RailX} is a circuit-switched \textit{HammingMesh} with higher local bandwidth inside the 2D-mesh. As a result, \textit{RailX} achieves higher scalability and higher AllReduce throughput than \textit{HammingMesh}.
+
+\section{Summary}
+\textit{RailX} is a novel network architecture optimized for large-scale LLM training systems. By utilizing advanced integration technologies (high-bandwidth 2D-mesh), 2D-organized circuit switches, and \textit{rail-ring-based all-to-all} interconnection, \textit{RailX} achieves higher scalability and cost-effectiveness than existing topologies. It provides extreme injection/All-Reduce bandwidth at hyperscales and very low cost (less than $10\%$ compared with the Fat-Tree) while maintaining sufficient bisection/All-to-All bandwidth. \textit{RailX} also demonstrates high flexibility in the MLaaS scenario. Circuit switching allows single or multiple jobs to be flexibly scheduled, and failure nodes can be easily worked around. With the \textit{dimension-splitting} method, the number of topology dimensions and the bandwidth/scale of each dimension can be flexibly adjusted according to the workload. 
+

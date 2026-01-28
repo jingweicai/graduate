@@ -1,0 +1,399 @@
+% !TeX root = ../thesis.tex
+
+\chapter{Heterogeneous Interfaces: Enabling More Flexible Chiplet Networks}
+\label{chap05:heteroIF}
+
+\textit{Chiplet} has become one of the most popular VLSI design methodologies in recent years. With the support of advanced packaging and high-speed wireline technologies, multiple silicon dies can be integrated at high density and communication bandwidth~\cite{Liu_256GbMmshorelineAIBCompatible_2021, Mahajan_EmbeddedMultidieInterconnect_2019, Ingerly_Foveros3DIntegration_2019, Huang_WaferLevelSystem_2021, Shin-HuaChao_FineLineSpace_2016}. As shown in Figure~\ref{chap05:fig:chiplet}, since 2.5D packaging provides abundant high-quality wiring resources, chiplets can be connected together through various die-to-die interfaces\cite{Ma_SurveyChipletsInterface_2022, Lin_ScalableChipletPackage_2020, Carusone_UltrashortreachInterconnectsPackagelevel_2016, Synopsys_DesignWareDietoDie112G_2021, Kehlet_AcceleratingInnovationStandard_, Ardalan_OpenInterChipletCommunication_2021, _UniversalChipletInterconnect_2024, Wade_TeraPHYChipletTechnology_2020}. Though there are multiple interface technologies with different metrics, most current multi-chiplet systems only choose one of them according to their major requirements~\cite{Shao_SimbaScalingDeepLearning_2019, Naffziger_PioneeringChipletTechnology_2021, Gomes_PonteVecchioMultiTile_2022, Talpes_DOJOMicroarchitectureTeslas_2022}. Various groups in the industry are pushing for some kind of technology route as a unified standard~\cite{JEDEC_SerialInterfaceData_2017, _CommonElectricalCEI_2024, Sheikh_CHIPSAllianceAIB3D_2021,_AIBSpecification20_2022, _BunchWiresPHY_, _UniversalChipletInterconnect_2024, Ma_OpenHBISpecificationVersion_2021}, however, there is no such a \textit{one-size-fits-all} universal interface for chiplet freely-reuse. The uniform interface is not flexible enough to handle complex and mixed network traffic. Choosing any kind of interface means not being able to cope well with some workloads. Motivated by the limitations of the uniform interface, \textit{Heterogeneous Interface} is proposed to deal with the inflexibility in different scenarios. Nevertheless, building multi-chiplet systems through heterogeneous interfaces faces many challenges.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2023MICRO/intro.pdf}
+  \caption{Multi-chiplet system: Advanced packaging technologies provide abundant interconnection possibilities.  \label{chap05:fig:chiplet}}
+\end{figure}
+
+\textit{\textbf{Challenge 1.} The design and scheduling of heterogeneous interfaces can be complex and tricky.} First, interface microarchitectures have huge impacts on systems; however, the architecture of hetero-IF-based multi-chiplet systems has not been discussed. Second, heterogeneity can lead to potential problems such as \textit{out-of-order delivery}~\cite{Palesi_EfficientTechniqueInorder_2010} and \textit{heterogeneous router}~\cite{Ben-Itzhak_HeterogeneousNoCRouter_2015}. Besides, the scheduling of heterogeneous interfaces is more complex (but flexible) than uniform interfaces. These issues need to be fully discussed.
+
+\textit{\textbf{Challenge 2.} Multi-chiplet systems based on heterogeneous interfaces require efficient and deadlock-free interconnection solutions.} The performance of interconnection networks is sensitive to topology and routing. However, connecting several networks-on-chiplet (NoCs) may lead to potential deadlock and congestion problems~\cite{Majumder_RemoteControlSimple_2021, Yin_ModularRoutingDesign_2018}. Heterogeneous interfaces introduce extra interconnection and routing choices, making the problems even more complicated. To fully exploit heterogeneous interfaces, methods for designing flexible interconnection schemes and applying efficient deadlock-free routing algorithms are necessary.
+
+To address the challenges, the implementation, microarchitecture, scheduling, interconnection, and routing issues of the heterogeneous interface and hetero-IF-based multi-chiplet systems are discussed. The contributions of this chapter can be summarized as follows:
+\begin{itemize}
+  \item For multi-chiplet systems, the limitations of the uniform die-to-die interface are analyzed, and the \textit{heterogeneous interface} architecture is proposed. 
+  \item Two typical heterogeneous interface implementations are presented: \textit{Heterogeneous PHY (Hetero-PHY)} and \textit{Heterogeneous channel (Hetero-Channel)}. The characteristics, usage, microarchitectures, and overheads of the two implementations are introduced. 
+  \item Hetero-IF-based multi-chiplet interconnection networks and related deadlock-free routing algorithms are introduced. Evaluations show that the hetero-IF delivers huge performance and energy improvements under various workloads.
+\end{itemize}
+
+% \section{Background}
+% \subsection{Chiplet Architecture}
+% \begin{figure}[tb]
+%   \centering
+%   \includegraphics[width=0.95\linewidth]{../figures/2023MICRO/chiplet number.pdf}
+%   \caption{Chiplet reuse in systems of different scales. For different scenarios, though using the same chiplet, systems have very different integration and interconnection architectures.   \label{chap05:fig:chiplet-number}}
+% \end{figure}
+% The conventional VLSI system is implemented on a monolithic silicon die. However, the die area is limited by the lithographic reticle, and designing large chips is very costly\cite{Stow_CostAnalysisCostdriven_2016, Feng_ChipletActuaryQuantitative_2022}.
+% In recent years, packaging and high-speed wireline technologies have made great progress. Advanced packaging technologies provide a large interconnect base and a high volume of interconnection wires~\cite{Huang_WaferLevelSystem_2021, Shin-HuaChao_FineLineSpace_2016}. Multiple chiplets can be interconnected and integrated at very high density and communication bandwidth. Up to now, the vast majority of current multi-chiplet systems still conservatively adopt flat topology such as 2D-mesh. Though flat topology is easy to implement, it has limited network performance and does not fully utilize the on-package interconnect resources.
+
+% Another attractive feature of chiplet architecture is \textit{chiplet reuse}. As shown in Figure~\ref{chap05:fig:chiplet-number}, identical chiplets can be used to build multiple systems of different scales. In this way, significant design costs can be saved~\cite{Naffziger_PioneeringChipletTechnology_2021, Feng_ChipletActuaryQuantitative_2022}. Various works try to develop such scalable systems through identical chiplets~\cite{Lie_MultiMillionCoreMultiWafer_2021, Chang_DOJOSuperComputeSystem_2022, Shao_SimbaScalingDeepLearning_2019, Zimmer_032128TOPSScalable_2020, Ignjatovic_WormholeAITraining_2022}. These systems use identical interconnect architectures at different scales. However, for different scenarios, systems of different scenarios and scales have different requirements for interconnection topologies and interface metrics. For example, mobile systems require low power consumption, while datacenter systems require high throughput. Feng \textit{et al.} present a scalable method to use different topologies for different network scales~\cite{Feng_ScalableMethodologyDesigning_2023}. However, it only adopts the uniform serial interface, which limits the latency and energy performance for small-scale systems and local communications.
+
+\section{Architecture}
+\label{chap05:sec:architecture}
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023MICRO/architecture.pdf}
+  \caption{Heterogeneous interface architectures. (a) Uniform Interface; (b) Heterogeneous PHY; (c) Heterogeneous Channel. The major difference between heterogeneous PHY and Channel is whether two PHYs share one adapter or have separate adapters. \label{chap05:fig:architecture}}
+\end{figure}
+
+As shown in Figure~\ref{chap05:fig:architecture}, according to whether sharing the adapter, a heterogeneous interface can be implemented in two ways: \textit{heterogeneous PHY} and \textit{heterogeneous channel}. Another heterogeneous interface \textit{heterogeneous protocol} is already widely used and thus will not be discussed in this chapter. For example, Compute Express Link (CXL), PCI Express, and Ethernet protocols can be used simultaneously through the SerDes PHY~\cite{Drucker_OpenDomainSpecificArchitecture_2020, JEDEC_SerialInterfaceData_2017, Sharma_ComputeExpressLink_2022}.
+
+\subsection{Heterogeneous PHY}
+As shown in Figure~\ref{chap05:fig:architecture}(b), heterogeneous PHY is to replace the physical layer of the uniform interface with two different PHY. The protocol layer (adapter) above the physical layer is still uniform. From the perspective of the router, the ports are still the same as traditional uniform interfaces. Traffic through the heterogeneous PHY interface is handled by the die-to-die adapter at the protocol layer.
+
+One of the advantages of heterogeneous PHY is that it is compatible with existing interconnection architectures. Since routers do not have to be re-designed and there are few potential routing issues, the original multi-chiplet systems based on uniform interfaces can be directly migrated and are not affected by the packaging technology. The use of heterogeneous PHY is also very simple, requiring only the adapter to determine the distribution of traffic between the two heterogeneous PHYs.
+
+\textit{\textbf{Usage.}} The hetero-PHY interface can be used in two ways. \textit{\textbf{1) Exclusive:}} The first way is to use only one of the interfaces depending on different scenarios. For example, only parallel interfaces are used to build low-power systems, and only serial interfaces are used to build cheaper substrate-based systems. These scenarios are usually not performance-oriented but energy-constrained or cost-constrained. Such a usage mode does not change the traditional uniform-IF-based architecture but allows the chiplet to use different interfaces in different systems, thus extending the range of applications. Though the deprecated interfaces waste some chip area, a lot of costs are saved by not re-designing the chiplet for different scenarios. \textit{\textbf{2) Collaborative:}} The second way is to use two different PHYs simultaneously. Compared with the exclusive mode, the collaborative mode can build more flexible and efficient interconnection networks. For example, as shown in Figure~\ref{chap05:fig:network}(a), a heterogeneous 2D-torus is connected by hetero-PHY interfaces. Compared with the traditional 2D-mesh network based on uniform parallel interfaces, the hetero-PHY-based network has a smaller diameter; compared with the high radix network based on uniform serial interfaces, the Hetero-PHY-based network has lower short-reach communication latency and power consumption. Under the collaborative mode, routing issues remain traditional, but a PHY-scheduling policy is necessary, which will be discussed in later sections.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023MICRO/network.pdf}
+  \caption{Interconnection networks of chiplets based on heterogeneous interfaces. (a) Two interfaces cannot be used separately; (b) Two interfaces can be used independently.
+ \label{chap05:fig:network}}
+\end{figure}
+
+\subsection{Heterogeneous Channel}
+\label{chap05:sec:hetero-channel}
+As shown in Figure~\ref{chap05:fig:architecture}(c), the heterogeneous channel is to replace the total interface with two independent interfaces. From the perspective of the router, the original physical channel is split into two different channels. Both channels can share the original virtual channels (buffers) or have their own separate virtual channels (buffers). Traffic through the heterogeneous channel interface is handled by the router.
+
+Compared with the hetero-PHY interface, the largest advantage of hetero-channel is the flexibility in interconnection design. Since the two channels are independent, an interface node can be interconnected with two different interface nodes, which provides numerous routing diversity and scheduling space. However, the interconnection network has to be re-designed because the router radix has changed. The router is supposed to handle routing and channel-selection issues.
+
+\textit{\textbf{Usage.}} Hetero-channel interface can be used just as the hetero-PHY interface. Besides, since the two different physical channels are independent, packets can either travel to adjacent chiplets with very low latency and power consumption or directly to distant chiplets via a long-reach serial interface. Physical transmission lines can be either on an advanced interposer or on a common substrate. At the same time, interconnections of multiple hierarchies are also possible. For example, as shown in Figure~\ref{chap05:fig:network}(b), four chiplets are connected into a 2D-mesh through the parallel interface. In the meantime, the serial interface connects the more distant nodes and leads out of the package for higher-hierarchy interconnection. Compared with hetero-PHY-based networks, though serial interfaces are also drawn out concurrently with parallel interfaces, they can connect to different distant nodes. Since serial interfaces are no longer restricted by short-reach parallel interfaces, hetero-channel-based multi-chiplet networks are more flexible and efficient.
+
+\section{Microarchitecture}
+\subsection{Heterogeneous Router}
+Since the bandwidths of the two interfaces are usually different and the total bandwidth of the heterogeneous interface is usually larger than the on-chip links. However, traditional switching technologies are based on the homogeneous router and only allow exclusive use of the channel, thus leading to low bandwidth utilization. Modifications to the router's microarchitecture are necessary to make full use of the interface bandwidth. A few works have discussed heterogeneous router microarchitectures. They used a large buffer shared by all ports to cope with arbitrary bandwidth variances~\cite{Ben-Itzhak_HeterogeneousNoCRouter_2015, Chao_HighPerformanceSwitches_2007}. However, such an architecture affects the behavior of the on-chip links and requires a complete re-design of the router. For multi-chiplet systems, only the interface ports of the network are heterogeneous. Therefore, a microarchitecture that involves minor modifications to the traditional router is proposed.
+
+As shown in Figure~\ref{chap05:fig:microarchitecture}(a), a chiplet-to-chiplet interface connects two routers. The transmitter router collects packets from all on-chip ports at normal bandwidth (assumed one flit per cycle). The crossbar is higher-radix, so that multiple internal ports can concurrently send packets to the external interface. On the receiving side, a large multi-port input buffer is used to store the packets from different upstream channels separately. At the same time, the router is supposed to support concurrent routing calculations and be able to concurrently send these packets in different directions.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.9\linewidth]{../figures/2023MICRO/microarchitecture.pdf}
+  \caption{Microarchitecture of the heterogeneous interface. (a) Heterogeneous router based on higher-radix crossbar; (b) Microarchitecture of the hetero-PHY adapter. \label{chap05:fig:microarchitecture}}
+\end{figure}
+
+\subsection{Hetero-PHY Adapter}
+Since the two interfaces of the hetero-channel are treated as two separate channels, the channel scheduling is handled by the router rather than the adapter. Therefore, only the microarchitecture design of the hetero-PHY adapter is discussed, which is shown in Figure~\ref{chap05:fig:microarchitecture}(b). Similar to the superscalar pipelines~\cite{Gonzalez_ProcessorMicroarchitectureImplementation_2010}, the hetero-PHY adapter has a front-end (transmitter) and back-end (receiver). For the transmitter side, the adapter first concurrently receives multiple packets from the router (\textbf{Fetch}). Then, necessary information, such as the type and priority, is extracted from the packet headers (\textbf{Decode}). After that, the adapter reserves physical resources according to the packet information and scheduling rules (\textbf{Dispatch}). Last, packets are sent to their respective PHYs (\textbf{Issue}).
+
+However, similar to the superscalar pipelines, the heterogeneous interface also has \textit{out-of-order} problems because two different physical paths have different propagation delays~\cite{Palesi_EfficientTechniqueInorder_2010}. Before a packet is delivered through the serial interface, a later packet may have been delivered through the parallel interface, which is intolerable for some applications, such as the cache coherence protocols. For messages that need to be strictly order-preserving, a reorder buffer (ROB) is adopted on the receiver side. All in-order packets are marked with additional tags and are only allowed to be forwarded if all previous packets have been processed; otherwise, packets are kept in the reorder buffers. On the transmitter side, out-of-order packets or high-priority packets can be dispatched early through the bypass. Only bypass at the parallel interface is allowed because bypass introduces more delay for in-order traffic, and the parallel interface has lower latency; otherwise, it may lead to ROB overflow (unbounded waiting time). Compared with multi-path routing, the size of ROB is easy to estimate because propagation delays are deterministic~\cite{Du_AnalyticalModelWorstcase_2014}. It is assumed that the latency of the parallel path can not exceed that of the serial path (due to bypass), then the size of the ROB needs a maximum capacity of
+\begin{equation}
+  \label{eq:rob}
+  S_{rob} = B_p \times (D_s - D_p) ,
+\end{equation}
+where $D_s$ and $D_p$ are the delay of serial and parallel interface; $B_p$ is the bandwidth of the parallel interface.
+
+\subsection{Cost Analysis}
+\label{chap05:sec:cost}
+The heterogeneous router is adopted only for the interface nodes, thus not introducing too much overhead. At the same time, hardware modifications, including multi-channel buffers, are only made on interface ports; therefore, most of the network-on-chiplet remains traditional.
+
+The cost of the PHYs is mainly determined by the number of I/O pins. Although adopting the heterogeneous interface, the total number of I/O pins can be limited by restricting the number of lanes/channels of two PHYs. If two standard PHYs are superimposed, the area overhead can be large, but the total bandwidth also increases. Such an area increase is more effective than simply increasing the lane/channel number of the uniform interface. Recent work has shown limited benefit from overly increasing interface bandwidth as the bottleneck migrates to the on-chip network. However, by adding a heterogeneous interface, the defects of the original uniform interface can be fundamentally solved.
+
+Another significant overhead is the reorder buffer. By substituting some specific data into Equation~\ref{eq:rob}, the capacity of the buffer is estimated to be around 10 flits, which is close to a typical packet size. The reorder buffer of the adapter can be merged with the input buffer of the router to unify the handling of other traditional out-of-order problems~\cite{Palesi_EfficientTechniqueInorder_2010} and reduce the buffer overhead.
+
+Although the heterogeneous interface introduces the above overheads, the increased flexibility allows chiplets to be reused in a wider range of applications, which means significant cost savings. \textbf{Flexibility itself is the most significant cost saving.}
+
+\section{Scheduling}
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023MICRO/Data-Time.pdf}
+  \caption{$V-t$ curve graph for interfaces. $t=0 $ is the time when the transmitter adapter starts to process the data, and $V$ is the data volume received by the receiver adapter. (a) Hetero-PHY combines the advantages of two uniform interfaces. (b) Lane/channel ratio adjustment based on requirements while controlling the total number of I/O pins.  \label{chap05:fig:VT}}
+\end{figure}
+
+\subsection{Bandwidth-Latency Analysis}
+Bandwidth and latency metrics are used to model hetero-PHY interfaces. Data volume (V) received-restored-kept in the receiver interface adapter buffer can be measured as
+\begin{equation}
+  V(t) = R(B(t-D)) ,
+\end{equation}
+where $R(x)=\max(x, 0)$, $B$ and $D$ are the bandwidth and total delay of the interface, respectively. $t=0 $ is the time when the transmitter adapter starts to process the data. Substituting some typical interface parameters, the $V-t$ curve can be drawn. As shown in Figure~\ref{chap05:fig:VT}(a), serial interfaces have a larger slope, and parallel interfaces have a smaller $t$-intercept. The compromised interface introduced in Section~\ref{chap02:sec:interface} improves the shortcomings of the two uniform interfaces to some extent, but it does not fundamentally address the limitations. If the $V-t$ curves of the two interfaces are added, the resulting folds have very good properties. The hetero-PHY interface, which combines two interfaces, can transmit more data with lower latency. If the total number of I/O pins is controlled to be consistent, as it is the determinant of the silicon area and cost, the curves of the interfaces are shown in Figure~\ref{chap05:fig:VT}(b). The hetero-PHY interface can adjust the lane/channel ratio of the two interfaces according to the requirements.
+
+\subsection{Weighted Path Length}
+The traditional routing algorithm is based on the minimal path of the node pairs, which is calculated by the hop number. However, for networks based on heterogeneous interfaces, the hop number only reflects limited characteristics of the path. For example, one hop through the serial interface can consume four times the latency and power of the parallel interface. One packet takes up the full bandwidth of the parallel interface, which is only a quarter of the bandwidth of the serial interface. Therefore, it is necessary to introduce more refined metrics as the routing reference. The cost of the $i^{th}$ hop can be defined as
+\begin{equation}
+  \label{equation:cost}
+  C_i = \alpha D_i + \frac{\beta}{B_i} + \gamma E_i ,
+\end{equation}
+where $D_i$ is the latency, $B_i$ is the bandwidth, $E_i$ is the energy consumption, and $\alpha, \beta, \gamma$ are coefficients. Then, the ``length'' of a path $p$ can be calculated as
+\begin{equation}
+  L_p = \sum_{i \in p} C_i ,
+\end{equation}
+where $i$ is each hop of the path. For networks based on the hetero-PHY interface, the cost of a hop is unfixed (depending on different PHY selections). Therefore, the ``length'' can also be expressed as $L_p = L_{p,d} + L_{p,nd}$, where $L_{p,d}$ is the deterministic length and $L_{p,nd}$ is the nondeterministic length. Since it is difficult to calculate the precise length of each path, only the inter-chiplet hops are counted, which are more costly compared with on-chip hops.
+
+Based on the weighted length, scheduling involves three stages of routing. First, in the routing calculation stage, the routing unit is supposed to give candidate paths (output channels) based on the static properties of the network. Second, in the allocation stage, the resource allocator selects one channel based on the current dynamic properties. Third, for the hetero-PHY interface, the adapter will dispatch a specific PHY for each packet that is allocated to the current channel.
+
+\subsection{Hetero-PHY Scheduling}
+\subsubsection{Rule-based scheduling}
+\label{chap05:sec:rule-based-scheduling}
+Rule-based scheduling is used to make routing and dispatching decisions based on predefined rules. Some specific examples are given of policies.
+
+\textit{\textbf{Performance-first.}} Network performance usually refers to the average latency of packet delivery. For the performance-first policy, parameter $\gamma$ in Equation~\ref{equation:cost} is set to zero. Every hetero-PHY interface is working at full capacity: dispatch as long as there is a free PHY. Such a policy is performance-oriented but does not consider energy efficiency at all.
+
+\textit{\textbf{Energy-efficient.}} Different from the performance-first policy, an energy-efficient policy sets a larger weight for the energy in Equation~\ref{equation:cost}. Since the parallel PHY consumes less energy than the serial PHY, the adapter always dispatches packets to the parallel PHY unless there is only the serial PHY. Such a policy provides high energy efficiency, but the network performance may be poor.
+
+\textit{\textbf{Balanced.}} In addition to extreme scheduling methods, there are also more balanced policies. When the adapter is dispatching packets, the parallel PHY is the choice of higher priority. Only parallel PHY is used under low traffic. However, under heavy traffic (e.g., packets in the dispatching queue are beyond the threshold), the serial PHY is enabled to improve the network performance.
+
+These policies provide flexibility for designing multi-chiplet systems and can be easily implemented and configured in hardware. However, rule-based scheduling does not cope well with more complex scenarios. For example, datacenter systems have mixed and unstable traffic, therefore, need more flexible scheduling methods.
+
+\subsubsection{Application-aware scheduling}
+Application-aware scheduling is to route or dispatch packets based on packet information. Before a message is delivered by the network, it is packetized by the injection unit. Necessary information, such as the destination address, is encoded to the header flits. The properties of the application can actively or passively influence scheduling. Passive application-aware scheduling is to use objective characteristics of the messages. For example, the packet length and number can be used for routing and PHY-dispatching, and time-out packets can be dispatched early. Actively application-aware scheduling allows the applications to influence or control decisions. A high-priority message is noted in the packetizing stage and delivered through parallel PHY for minimal latency or through serial PHY for maximum throughput. Compared with rule-based scheduling, application-aware scheduling is more flexible for complex scenarios.
+
+\section{Hetero-Channel: Case Study}
+As in Sec~\ref{chap05:sec:architecture}, compared with the hetero-PHY interface, the hetero-channel interface is more flexible. However, using hetero-channel interfaces still faces the routing challenge. Connecting several on-chip networks into a large interconnection can lead to serious deadlock and congestion problems. Extra channels provided by the hetero-channel interface introduce extra channel dependencies, which may lead to new deadlocks. Therefore, it is necessary to clarify how to apply routing algorithms on the new hardware. To better illustrate the approaches, a specific interconnection design is displayed as an example.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023MICRO/NoC.pdf}
+  \caption{A specific example for hetero-channel-based chiplet. (a) On-chiplet network: 2D-mesh with interfaces all around. (b) Typical router with two virtual channels (buffers) for each channel. \label{chap05:fig:noc}}
+\end{figure}
+
+\subsection{On-chip and Off-chip Interconnection}
+As shown in Figure~\ref{chap05:fig:noc}(a), we adopt the most commonly used 2D-mesh as the on-chiplet network. All edge nodes of the 2D-mesh, also called interface nodes, are attached to external interfaces; all internal nodes, also called core nodes, do not have direct communication channels to the outside of the chiplet. The microarchitecture of the router is based on the typical virtual channel router. As shown in Figure~\ref{chap05:fig:noc}(b), it contains two separate buffers (virtual channels) at each input port (physical channel). The serial interface and the parallel interface are independent and have their own virtual channel buffers. The routing of the packets for all channels can be calculated concurrently.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023MICRO/subnetwork.pdf}
+  \caption{Two subnetworks based on different interfaces. (a) Hypercube based on the serial interface; (b) 2D-mesh based on the parallel interface.  \label{chap05:fig:subnetwork}}
+\end{figure}
+
+\subsection{Routing Algorithm}
+\label{chap05:sec:hetero-channel-routing}
+\begin{figure}[htb]
+\centering
+\begin{minipage}{.8\linewidth}
+\begin{algorithm}[H]
+  \begin{algorithmic}[1]
+    \REQUIRE coordinates of the current node $x$\\ \quad and the  destination node $y$;
+    \ENSURE candidate output channels to the next hop.
+    \STATE $C_{N,i} = $ all $i^{th}$ virtual channel of NoC channels;
+    \STATE $C_{S,j} = $ all $j^{th}$ virtual channel of serial channels;
+    \STATE $C_{P,k} = $ all $k^{th}$ virtual channel of parallel channels;
+    \STATE $C = \bigcup\limits_{i,j,k \geq 0}(C_{N,i},\, C_{S,j},\, C_{P,k}) = $ all (virtual) channels;
+    \STATE $C_0 = C_{N,0} \cup C_{P,0}$;
+    \STATE $R_0(x,y) = negative\_first\_routing(x,y) \subset C_0$;
+    \STATE $C_{x \to y} = $ all output channels of $x$ for all optional paths from $x$ to $y$;
+    \STATE $C_a = \left (\bigcup\limits_{i\geq 1}C_{N,i} \right ) \cup \left (\bigcup\limits_{j\geq 0}C_{S,j} \right ) \cup \left (\bigcup\limits_{k\geq 1}C_{P,k} \right ) = C - C_0$;
+    \STATE $R_a(x,y) = C_{x \to y} \cap C_a$
+    \STATE $R(x,y) = R_0(x,y) \cup R_a(x,y)$;
+  \end{algorithmic}
+  \caption{\scshape R(x,y) based on 2D-mesh subnetwork \label{chap05:alg:MFRonhypercube}}
+\end{algorithm}
+\end{minipage}
+\end{figure}
+
+Such chiplets can be used to build interconnection networks in an extremely flexible way. For the sake of explanation, the parallel and serial interfaces will be discussed separately. As shown in Figure~\ref{chap05:fig:subnetwork}(b), chiplets can be connected into a 2D-mesh through parallel interfaces. Due to the short-reach of the parallel interface, this is a straightforward interconnection scheme, which is commonly adopted by modern multi-chip systems~\cite{Shao_SimbaScalingDeepLearning_2019,Nassif_SapphireRapidsNextGeneration_2022}. But 2D-mesh is considered limited for large-scale systems; thus, the long-reach serial interface compensates for the shortcomings. As shown in Figure~\ref{chap05:fig:subnetwork}(a), chiplet can be simultaneously connected into hypercube topology. From the perspective of network diameter, the hypercube not only reduces off-chip hops but also reduces on-chip hops by cross-chiplet connections. On the other hand, from the perspective of average distance, the parallel interface effectively reduces the minimal connection latency compared with serial-only networks.
+
+The routing algorithm for the proposed system is presented in Algorithm~\ref{chap05:alg:MFRonhypercube}. The set of all communication virtual channels is defined as $C$, which consists of three parts: on-chip channels $C_N$, parallel interface channels $C_P$, and serial interface channels $C_S$. $C_0$ is a 2D-mesh subnetwork with only one virtual channel on each edge. The traditional negative-first routing is used as the deadlock-free routing function on $C_0$. The remaining channels, including all serial interface channels and some parallel interface and on-chip channels, can be used fully adaptively if they belong to an optional routing path. The routing function that gives these channels is denoted as $R_a(x,y)$. The total candidate channels given by the final routing algorithm is $R_0(x,y) \cup R_a(x,y)$. 
+
+\begin{theorem}
+  The routing Algorithm~\ref{chap05:alg:MFRonhypercube} is deadlock-free.
+\end{theorem}
+
+\begin{proof}
+  There exists a channel subset $C_0 = C_{N,0} \cup C_{P,0}$, the routing subfunction $R' = R \cap C_0 = R_0$, is negative-first routing on 2D-mesh, which is connected and deadlock-free. Therefore, according to Theorem~\ref{theorem:duato-protocol}, the routing algorithm $R$ is connected and deadlock-free.
+\end{proof}
+
+Since the adaptive serial channels connect nodes that are far apart, the baseline negative-first routing on 2D-mesh becomes non-minimal routing, which leads to the \textit{livelock} problem. This problem is solved by channel switching restrictions: when a packet turns to the baseline subnetwork due to the congestion in adaptive channels of minimal paths, it is not allowed to go back to adaptive channels unless these adaptive channels belong to paths given by the baseline negative-first routing. In this way, packets always reach their destinations in limited steps.
+
+The instanced interconnection network and routing algorithm well demonstrate how to design deadlock-free routing for networks based on hetero-channel interfaces: as long as some channels are used to build a \textit{connected} and \textit{deadlock-free} common network, the remaining channels can be freely scheduled. Such systems provide many good features that systems based on uniform interfaces cannot simultaneously achieve. For local communication that occurs among adjacent chiplets, parallel interfaces provide very low latency and energy consumption. For heavy global traffic, serial interfaces enable higher network throughput through cross-connectivity and high bandwidth. More importantly, the heterogeneous interface allows for more free scheduling and chiplet-reuse, thus making the system more flexible.
+
+\section{Evaluation}
+\subsection{Simulator Architecture}
+\label{chap05:sec:simulator}
+We use a cycle-accurate C++ simulator, which will be introduced in detail in Chapter~\ref{chap06:cnsim}, to evaluate the heterogeneous interface architecture. The router microarchitecture in the simulator is based on the traditional virtual-channel-based router and consists of four pipeline stages~\cite{EnrightJerger_OnchipNetworksSecondEdition_2018}: \textbf{1)} Routing; \textbf{2)} VC allocation; \textbf{3)} Switch allocation; \textbf{4)} Transmission. Under ideal conditions of zero-load, Stages 1), 2) 3) can both be completed in one clock cycle. On-chip transmission of stage 4) is completed in one cycle, but cross-chiplet transmission consumes more cycles. Cross-chiplet flow-control leads to feedback lags, and an additional buffer is used to circumvent this problem.
+
+\textit{\textbf{Interface Model.}} Since the signal frequency and propagation latency of the off-chip interfaces are much larger than on-chip links, it is necessary to model the interfaces as behavioral-level digital circuits of the same clock domain. As shown in Figure~\ref{chap05:fig:microarchitecture}(a), multiple virtual pipeline registers are used to simulate the behavior of the off-chip interface. For each on-chip clock cycle, multiple flits move one step forward in this virtual path. The larger the bandwidth, the more concurrency is used; and the larger the latency, the more pipeline stages are inserted. The virtual pipeline stage count can be estimated at $\frac{\text{Interface Latency}}{\text{On-chip Clock Period}}$.
+
+\textit{\textbf{Parameters.}} The simulator's default parameters used in the experiments are shown in Table~\ref{chap05:tab:parameter}. The extra propagation delay of the parallel and serial interface is assumed at 5 cycles and 20 cycles. The bandwidth of the heterogeneous interface in the evaluations can be full (4-flits/cycle-serial and 2-flits/cycle-parallel) or halved (2-flits/cycle serial and 1-flits/cycle parallel). As discussed in Sec~\ref{chap05:sec:cost}, the halved hetero-IF combines two halved standard interfaces to restrict the total number of I/O pins.
+
+\begin{table}[tb]
+  \centering
+    \caption{Default parameters.}
+    \label{chap05:tab:parameter}
+    \begin{tabular}{cc}
+      \toprule
+      \textbf{Parameter}      & \textbf{Value}                 \\
+      \midrule
+      Packet Length           & 16 flits                       \\
+      On-chip Buffer Size       & 32 flits                     \\
+      Interface Buffer Size     & 64 flits                     \\
+      Virtual Channel Number  & 2 channels/link                \\
+      On-chip Link Bandwidth  & 2 flits/cycle                  \\
+      Parallel Link Bandwidth & 2 flits/cycle                  \\
+      Parallel Link Delay     & 5 cycles                       \\
+      Serial Link Bandwidth   & 4 flits/cycle                  \\
+      Serial Link Delay       & 20 cycles                      \\
+      Simulation Time         & 100000 cycles                  \\
+      \bottomrule
+    \end{tabular}
+\end{table}
+
+\textit{\textbf{Workloads.}} In the following evaluations, three main network traffic workloads are used. \textbf{1) Patterns.} The uniform pattern consists of random source-destination node pairs, and the uniform-hotspot traffic restricts communications only between random 10\% node pairs. Other permutation traffic patterns, including bit-shuffle ($d_i=s_{(i-1) \bmod b}$), bit-complement ($d_i=\neg s_i$), bit-transpose ($d_i=s_{(i+b / 2) \bmod b}$), and bit-reverse ($d_i=s_{b-i-1}$), are also evaluated~\cite{Dally_PrinciplesPracticesInterconnection_2004}. \textbf{2) PARSEC traces.} The evaluated PARSEC traces are provided by Netrace, which are collected from 64-core multiprocessors running PARSEC binaries under Linux~\cite{Bienia_BenchmarkingModernMultiprocessors_2011, Hestness_NetraceDependencydrivenTracebased_2010}. During simulations, all packets are injected according to the trace time even if queuing occurs. The packet lengths are also given by the traces, which consist of two kinds of lengths: 72 bytes (9 flits) and 8 bytes (1 flit). \textbf{3) High-performance computing (HPC) traces.} The traces are collected using the open-source dumpi toolkit on Cray XE06 (Hopper) at NERSC~\cite{Avin_ComplexityTrafficTraces_2020, _CharacterizationDOEMiniapps_}. In this chapter, we use two of them: one is the program for the Compressible Navier-Stokes (CNS) equations, and another is the program for the 3D method of characteristics (MOC). Both programs use 1024 cores among all cores (153,408) of the Hopper system, and both traces have over one million packets. In the experiments, the total scale of the evaluated system is also larger than 1024 nodes, and 1024 nodes are picked from them.
+
+\textit{\textbf{Topology \& Routing.}} hetero-IF-based interconnection methods are evaluated on 2D-mesh-NoC-based chiplets shown in Figure~\ref{chap05:fig:noc}(a). As shown in Figure~\ref{chap05:fig:network}(a), the hetero-PHY-based chiplets can be connected into 2D-mesh through parallel interfaces and simultaneously into 2D-torus through serial interfaces. As shown in Figure~\ref{chap05:fig:subnetwork}, the hetero-channel-based chiplets can be connected into 2D-mesh through parallel interfaces and simultaneously into hypercube through serial interfaces. \textbf{The baseline systems are uniform-parallel-IF-based 2D-mesh as well as uniform-serial-IF-based 2D-torus (compared with hetero-PHY) and hypercube (compared with hetero-channel).} Negative-first-based adaptive routing is adopted for 2D-mesh and 2D-torus, and minus-first-based adaptive routing is adopted for hypercube.
+
+\subsection{Circuit Implementation}
+We also verify the heterogeneous interface by actual implementations. Post-synthesis analysis is made at TSMC-12nm. \textbf{1) Hetero-PHY adapter RX (reorder buffer).} A FIFO is used to buffer the flits (data and sequence number (SN)) from the parallel-PHY and wait for flits with earlier SN to arrive from the serial-PHY. \textbf{2) Hetero-PHY adapter TX (multi-width FIFO).} We implement a FIFO that can read/write multiple flits in one cycle. The control logic decides how many flits to read based on the current state. Specifically, we implement the \textit{balance scheduling}, as referred in Sec.~\ref{chap05:sec:rule-based-scheduling}: if data in the FIFO reaches half of the capacity, read three flits, one to the parallel-PHY and two to the serial-IF; otherwise, read one flit to the parallel-PHY. \textbf{3) Heterogeneous router (high-radix router).} The parallel-IF uses the original port, and two extra ports are added, including routing computing logic, for the serial-IF. The router architecture is the canonical VC router~\cite{Ben-Itzhak_HeterogeneousNoCRouter_2015, Dally_PrinciplesPracticesInterconnection_2004, Becker_EfficientMicroarchitectureNetworkonChip_2012, Anan-cn_AnancnOpenSourceNetworkonChipRouterRTL_2023}.
+
+\subsection{Performance Evaluation}
+\label{chap05:sec:performance-evaluation}
+\subsubsection{Hetero-PHY-based Network}
+\label{chap05:sec:performance-evaluation-on-hetero-PHY}
+The rule-based \textit{balanced} scheduling policy is adopted for hetero-PHY-based 2D-torus in the evaluations, i.e., parallel PHYs are used at higher priority.
+
+\textit{\textbf{Traffic patterns.}} First, six common traffic patterns are evaluated on a medium-scale system (4$\times$4 chiplets, 4$\times$4 nodes per chiplet, 256 nodes in total).  As shown in Figure~\ref{chap05:fig:hetero-phy-traffic-patterns}, under light traffic, uniform-serial-IF-based 2D-torus has poor latency performance because the delay of the serial interface is high. For uniform-parallel-IF-based 2D-mesh, as the diameter is long and the bisection bandwidth is limited, the throughput performance is poor. The hetero-PHY-based 2D-torus with full bandwidth has better latency and saturation injection rate at all traffic patterns. However, the hetero-PHY-based 2D-torus with halved bandwidth has poor latency performance under heavy traffic because the wraparound links are halved-bandwidth serial-only interfaces, which severely affect the performance.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2023MICRO/Hetero-PHY Traffic Pattern.pdf}
+  \caption{Performance evaluation for hetero-PHY-based interconnection network on different traffic patterns. \label{chap05:fig:hetero-phy-traffic-patterns}}
+\end{figure}
+
+\textit{\textbf{PARSEC traces.}} Besides traffic patterns, real-world workloads are also evaluated. As the PARSEC traces are collected from 64-core multiprocessors, we adopt the same scale system (4$\times$4 chiplets, 2$\times$2 nodes per chiplet, 64 nodes in total). As shown in Figure~\ref{chap05:fig:parsec}, under all workloads, the hetero-PHY-based 2D-torus has better latency performance. The full-bandwidth system and half-bandwidth system have similar results because wraparound packets do not occupy a large proportion of PARSEC traces. The uniform-parallel-IF-based 2D-mesh has better performance than the uniform-serial-IF-based 2D-torus because the delay of the serial interface (20 cycles) is dominant for small-scale networks. The latency variance of hetero-IF-based networks is lower than in the case of uniform-IF-based networks, indicating that less congestion occurs during the simulations.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023MICRO/Hetero-PHY Parsec.pdf}
+  \caption{Performance evaluation for hetero-PHY-based interconnection network on traces of different PARSEC workloads. \label{chap05:fig:parsec}}
+\end{figure}
+
+\textit{\textbf{HPC traces.}} The interconnection method is also evaluated on a large-scale system (6$\times$6 chiplets, 6$\times$6 nodes per chiplet, 1296 nodes in total). As shown in Figure~\ref{chap05:fig:hetero-phy-dc-traces}, for the CNS program, the hetero-PHY-based 2D-torus has better throughput than the uniform-parallel-IF-based 2D-mesh network and has better latency than the uniform-serial-IF-based 2D-torus network. For the MOC program, the hetero-PHY-based 2D-torus also has a latency advantage, but the saturation injection rates of the three networks are the same. The half-bandwidth system has half the saturation injection rate, indicating the interface is fully used for the MOC program.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023MICRO/Hetero-PHY DC traces.pdf}
+  \caption{Performance evaluation for hetero-PHY-based interconnection network on HPC traces. \label{chap05:fig:hetero-phy-dc-traces}}
+\end{figure}
+
+\textit{\textbf{Summary.}} From the results, the hetero-PHY performs better than traditional uniform interfaces under various workloads. However, since the parallel and serial interfaces are bound together, there is still inflexibility in practice. Halving the interface bandwidth (restricting the total number of I/O pins) in many scenarios can affect performance.
+
+\subsubsection{Hetero-Channel-based Network}
+\label{chap05:sec:performance-evaluation-on-hetero-channel}
+We adopt the routing algorithm proposed in Sec~\ref{chap05:sec:hetero-channel-routing} for the hetero-channel-based interconnection network. As discussed earlier in Sec~\ref{chap05:sec:hetero-channel}, hetero-channel is used for large-scale systems, such as the wafer-level datacenter system. Therefore, we build a large-scale system consisting of 3136 nodes (7$\times$7 nodes per chiplet, 8$\times$8[$2^6$] chiplets). Rule-based \textit{balanced} scheduling is used based on cross-chiplet hops from the source chiplet to the destination chiplet. The channel selection function can be described as
+\begin{align}
+  SS =
+  \begin{cases}
+    \text{Serial-IF-based cube},   & \quad \#H_P-\#H_S > 0   \\
+    \text{Parallel-IF-based mesh}, & \quad \#H_P-\#H_S \le 0
+  \end{cases}
+\end{align}
+where $SS$ is the selected subnetwork, $\#H_P$ is the parallel link hop count in the 2D-mesh subnetwork, and $\#H_S$ is the serial link hop count in the hypercube subnetwork. This function results in the lowest total number of cross-chiplet hops.
+
+\textit{\textbf{Traffic patterns.}} We evaluate the six traffic patterns on the systems.  As shown in Figure~\ref{chap05:fig:hetero-channel-traffic-pattern}, under various traffic patterns, the uniform-serial-IF-based hypercube network has better performance than the uniform-parallel-IF-based 2D-mesh network. The hetero-channel-based network with a parallel-IF-based subnetwork has even better performance than the serial-IF-only network. That's because when a message is approaching the destination, it can turn to use the low-latency parallel interface rather than always using the long-reach serial interface. Since high-radix networks have lower requirements on link bandwidth, the half-bandwidth interfaces do not affect performance too much.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2023MICRO/Hetero-Channel Traffic Pattern.pdf}
+  \caption{Performance evaluation for hetero-channel-based interconnection network on different traffic patterns. \label{chap05:fig:hetero-channel-traffic-pattern}}
+\end{figure}
+
+\textit{\textbf{HPC traces.}} In the evaluation of the HPC traces, the core nodes of each chiplet are used. As shown in Figure~\ref{chap05:fig:hetero-channel-dc-traces}, for the CNS program, the hetero-channel-based network has better throughput and latency, which is similar to the result of the hetero-PHY evaluation. For the MOC program, the hetero-channel-based network and uniform-parallel-IF-based 2D-mesh have similar throughput results. There is a small twist at the beginning because the parallel interface is queued up, and more serial interfaces are used. The half-bandwidth interfaces also do not affect the performance.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023MICRO/Hetero-Channel DC traces.pdf}
+  \caption{Performance evaluation for hetero-channel-based interconnection network on HPC traces.  \label{chap05:fig:hetero-channel-dc-traces}}
+\end{figure}
+
+\textit{\textbf{Summary.}} From the results, the hetero-channel also performs better than traditional uniform interfaces under various workloads. Compared with the hetero-PHY interface, the hetero-channel interface allows for completely different high-radix topologies, thus reducing the bandwidth requirements. Therefore, the hetero-channel interface enables more flexibility in building multi-chiplet interconnect systems while reducing the interface overhead.
+
+
+\begin{table}[htb]
+  \centering
+    \caption{Average latency reduction of hetero-IF compared with uniform-parallel-IF / uniform-serial-IF.}
+    \label{table:scalability}
+    \begin{tabular}{ccc}
+      \toprule
+      \textbf{Scale (On-Chip)} & \textbf{Hetero-PHY} & \textbf{Hetero-Channel} \\
+      \midrule
+      4$\times$(2$\times$2)    & 17.3\% \;/\; 21.7\% & /    \\
+      16$\times$(2$\times$2)   & 17.5\% \;/\; 30.0\% & /    \\
+      16$\times$(4$\times$4)   & 16.4\% \;/\; 21.8\% & \ 9.6\% \;/\; 22.2\%    \\
+      16$\times$(6$\times$6)   & 19.3\% \;/\; 17.9\% & 15.5\% \;/\; 19.8\%     \\
+      64$\times$(7$\times$7)   & 35.8\% \;/\; 20.5\% & 46.4\% \;/\; 13.1\%     \\
+      \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Scalability Evaluation}
+Further evaluations are done on the scalability. Uniform traffic at 0.1 flits/cycle/node is evaluated on 5 systems of different on-chip and off-chip scales. We count the average latency reductions of hetero-IF-based networks compared with uniform-parallel-IF-based and uniform-serial-IF-based networks.
+
+As shown in Table~\ref{table:scalability}, heterogeneous interfaces achieve 9.6\% - 46.4\% lower latency for systems of different scales. The results show that the heterogeneous interface has good scalability.
+
+\subsection{Post-Synthesis Analysis}
+
+The RX adapter includes a 64bit-width 16-depth FIFO and the counting logic; the TX adapter includes a same-size FIFO (queue) with 3 concurrent read/write ports and the scheduling logic. Compared with the regular adapter, the reordering logic adds one extra cycle. As shown in Table~\ref{tab:post-synthesis}, the area/energy overhead of the adapter is small, and the module can run at a high frequency (1.85GHz). The overhead of the heterogeneous router is relatively high. Adding an extra 2 concurrent ports increases the area by 45\% and power by 33\%. Nevertheless, the router's operating frequency was not significantly affected, and power/area is still proportional to the throughput.
+
+\begin{table}[tb]
+  \centering
+    \caption{Post-synthesis analysis result. \label{tab:post-synthesis}}
+    \begin{tabular}{cccc}
+      \toprule
+      \textbf{Module}          & \textbf{Area (um2)} & \textbf{Power} & \textbf{Frequency (Critical Path)}                                                                  \\ 
+      \midrule
+      Adapter RX                                                             & 1389           & 1.14mW (3.2fJ/bit)                         & 1.85GHz (0.36ns) \\ 
+      Adapter TX                                                             & 1849           & 0.78mW (3.3fJ/bit)                         & 1.85GHz (0.37ns) \\ 
+      Regular Router                                                       & 7007           & 2.19mW                                                                              & 1.20GHz (0.65ns) \\
+      Heterogeneous Router      & 10155          & 2.92mW                                                                              & 1.16GHz (0.67ns) \\ 
+      \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Energy Evaluation}
+
+We also evaluate the energy consumption of the hetero-IF-based interconnection networks.  The overhead of the off-chip interfaces is estimated as 1 pj/bit for the parallel interface and 2.4 pj/bit for the serial interface. We count the energy consumed by each packet on the path and calculate the average.
+
+\textit{\textbf{Uniform traffic.}} The evaluated traffic injection rate is 0.1. The hetero-PHY-based system is the large-scale 2D system mentioned in Sec~\ref{chap05:sec:performance-evaluation-on-hetero-PHY}. As shown in Figure~\ref{chap05:fig:energy-uniform}(a), the uniform-parallel-IF-based 2D-mesh has poor on-chip energy performance because it has more average hops compared with 2D-torus. The energy performance of the uniform-serial-IF-based 2D-torus suffers from the high-energy interface. The hetero-PHY-based torus achieves fewer hop counts and lower hop cost simultaneously, thus achieving lower energy consumption. If the scheduling method is restricted to \textit{energy-efficient}, which is described in Sec~\ref{chap05:sec:rule-based-scheduling}, 7\% further energy reduction is achieved. As shown in Figure~\ref{chap05:fig:energy-uniform}(b), the hetero-channel-based interconnection system has the same topology and scale as in Sec~\ref{chap05:sec:performance-evaluation-on-hetero-channel}. The hetero-channel interface with \textit{energy-efficient} scheduling achieves 31\% and 13\% lower energy compared with uniform-parallel-IF and uniform-serial-IF.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023MICRO/Energy-uniform.pdf}
+  \caption{Average energy consumption on the uniform traffic.  \label{chap05:fig:energy-uniform}}
+\end{figure}
+
+\textit{\textbf{HPC workloads.}} We also evaluate the energy performance under real-world traffic (MOC traces). The topology and scale are the same as in Sec~\ref{chap05:sec:performance-evaluation}. As shown in Figure~\ref{chap05:fig:energy-DC}(a), the hetero-PHY-based interconnection network achieves 9\% lower power consumption compared with the uniform-parallel-IF-based 2D-mesh network. As shown in Figure~\ref{chap05:fig:energy-DC}(b), the hetero-channel-IF with \textit{energy-efficient} scheduling achieves 27\% and 10\% lower energy compared with uniform-parallel-IF and uniform-serial-IF.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023MICRO/Energy-DC.pdf}
+  \caption{Average energy consumption on the HPC traffic. \label{chap05:fig:energy-DC}}
+\end{figure}
+
+\textit{\textbf{Flexibility for different traffic scales.}} In the above experiments, the energy performance of hetero-IF-based large-scale systems is similar to the uniform-serial-IF-based systems. However, for modern high-performance computing systems, there are massive local communications (\textit{e.g.,} the nearest-neighbor communication in the stencil computation), which are not suitable for using serial interfaces. We evaluated the energy performance of local communication in large-scale systems by limiting the position and scale of the communication nodes. As shown in Figure~\ref{chap05:fig:energy-scale}, the horizontal coordinates indicate different local communication scales, and the evaluated uniform traffic injection rate is 0.01 flits/cycle/node. For short-reach local traffic, the energy performance of uniform-serial-IF-based systems is not as good as for full-scale traffic. Hetero-IF-based systems, with both low-power, short-reach connectivity and cross-chip, long-reach connectivity, provide better energy performance at all scales of workloads.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023MICRO/Energy-scale.pdf}
+  \caption{Average energy consumption for different traffic scales.  \label{chap05:fig:energy-scale}}
+\end{figure}
+
+\section{Discussion}
+\textit{\textbf{Why hetero-IF is effective?}}
+Extensive evaluation results show that heterogeneous interfaces bring good performance in both latency and energy. The most essential reason for this improvement is that the hetero-IF combines the advantages of two different interfaces and covers up the disadvantages of both. More specifically, the hetero-IF provides channel adaptivity and diversity, which allows packets to traverse paths with fewer hops, lower latency, less energy, and less congestion.
+
+\textit{\textbf{What are the applicable scenarios?}}
+Weighing the costs and benefits, the hetero-IF is applicable in the following scenarios:
+1) Large-scale high-performance computing systems with complex and mixed network traffic. 2) Chiplets which are reused among various systems with different scales and applications.
+3) Multi-chiplet systems which are supposed to be highly customized and allow software-defined scheduling. However, hetero-IF is not applicable in: 1) Scenarios where the energy and area are extremely limited. 2) Dedicated systems with fixed and simplex communication modes.
+
+\textit{\textbf{Fault tolerance.}} Conventional fault-tolerant routing algorithms can also be applied to hetero-IF-based interconnection networks~\cite{Xiang_PracticalDeadlockFreeFaultTolerant_2009, Xiang_FaultTolerantAdaptiveRouting_2019}. Since hetero-IF provides more channel diversity and adaptivity, it may improve the system's fault tolerance. 
+
+
+
+\section{Summary}
+The same as all architectures, chiplet architecture also seeks generality. People have always expected one standard chiplet-to-chiplet interface to cover all scenarios. However, it has been proven in practice that the uniform interface can significantly limit the chiplet architecture. Therefore, we propose and discuss a new architecture: \textit{Heterogeneous Interface}, which makes multi-chiplet systems more flexible.
+In general, flexibility is reflected in three aspects:
+
+\begin{itemize}
+  \item \textit{Flexibility in \textbf{interconnection}.} First, since the connection is no longer limited by the physical properties of the interface, the topology of multi-chiplet networks can be more flexible. Second, there is richer path diversity for hetero-IF-based networks, which improves the network performance under complex traffic.
+  \item \textit{Flexibility in \textbf{scheduling}.} Heterogeneous interfaces allow different packets to go through different physical channels at different times, which greatly enhances the flexibility of system scheduling. With rule-based or application-aware scheduling policies, better metrics are achieved.
+  \item \textit{Flexibility in \textbf{economy}.} First, the choice of packaging options can be more flexible, meaning that the appropriate package can be selected based on cost constraints. Second, the application scope of chiplets has been expanded, meaning that more systems can be composed with fewer chiplets, which has proven to be economical.
+\end{itemize}
+
+In this chapter, two typical implementations of heterogeneous interfaces and their usages are discussed. The overheads are analyzed, and a few practical scheduling methods are introduced. Also, interconnection and routing methods for hetero-IF-based networks are presented and discussed. Extensive evaluations demonstrate that hetero-IF does deliver significant performance improvements and flexibility gains.
+

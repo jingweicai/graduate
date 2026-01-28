@@ -1,0 +1,37 @@
+% !TeX root = ../thesis.tex
+
+% 中英文摘要和关键字
+
+\begin{abstract}
+  随着计算负载，尤其是人工智能任务的不断增大，计算机架构对可扩展性的需求也日益增强。在过去几十年中，硬件的扩展主要由摩尔定律推动；然而，受到物理规律限制，摩尔定律已变得越来越难以持续。戈登·摩尔本人以及半导体行业都认为“将分别封装的小功能（芯粒）集成在一起”是摩尔定律的延续。随着2.5D/3D集成和高速传输线技术的进步，基于芯粒的架构已成为后摩尔时代硬件扩展的最重要技术路线之一。本文介绍了一系列基于芯粒的计算机体系结构，尤其是互连网络架构的研究。
+
+首先，本文介绍了成本模型和芯粒复用架构探索框架“芯粒精算师”。作为芯粒架构的基础性工作之一，该模型定量地描述了多芯片系统的制造成本和非重复工程成本，并提供了关于芯粒架构经济性和可扩展性的关键见解。降低成本是隐藏在摩尔定律背后的根本逻辑，深刻影响集成电路和计算机体系结构的设计。同时，成本也是贯穿本文的关键因素。
+
+然后，本文介绍了芯粒网络架构方面的四项创新。“可扩展的多芯粒互连方法”将基于二维网格片上网络的芯粒扩展成大规模高维互连系统，在不改变典型片上网络架构的情况下实现更高效、更灵活的互连；“异构芯粒接口”架构通过结合不同物理接口的优势并弥补两者的劣势，实现了更加灵活的芯粒互连网络；“芯粒网络仿真器”针对大规模芯粒网络设计，速度比现有仿真器快一个数量级，同时能够验证必要的微架构并保持时钟级精度；“环路”片上网络，通过减少路由器开销、隔离芯粒内外流量以及解耦芯粒间和芯粒内路由设计，在保持多芯粒互连系统灵活性和可扩展性的同时，提高了效率。
+
+最后，本文介绍了两项将芯粒网络扩展到大规模数据中心和超算的系统创新。“晶圆上的无交换机Dragonfly”利用晶圆级集成技术消除了现有超算网络中的昂贵的高基数交换机，提高局部带宽的同时保持了全局带宽；“RailX”在此基础上进一步针对超大规模AI训练任务进行优化，配合光交换技术，相比现有的解决方案（胖树），All-Reduce带宽提高了10倍，All-to-All带宽提高了2倍。
+
+芯粒架构是后摩尔时代计算系统持续扩展的重要技术路径，本文介绍的一系列研究解决了芯粒架构从新兴到成熟的关键科学问题，推动了后摩尔时代计算机体系结构的发展，为未来的计算任务提供了新的解决方案。
+
+  % 关键词用“英文逗号”分隔，输出时会自动处理为正确的分隔符
+  \thusetup{
+    keywords = {芯粒, 先进封装, 高性能互连网络, 拓扑, 路由算法},
+  }
+\end{abstract}
+
+\begin{abstract*}
+  Increasingly large computational loads, especially AI workloads, are calling for more scalable computer architectures. Over the past few decades, hardware scaling has been driven primarily by Moore's Law; however, Moore's Law has become increasingly unsustainable due to the physical limitations. “Integration of separately packaged smaller functions” is considered the extension of Moore's Law by Gordon Moore himself and the semiconductor industry. With recent advances in 2.5D/3D integration and high-speed wireline technologies, Chiplet architecture has become one of the most important technology routes for hardware scaling in the post-Moore era. This thesis presents a series of studies that focus on the chiplet-based computer architecture, especially interconnection network architecture.
+
+  First, the cost model and chiplet reuse architecture exploration framework \textit{Chiplet Actuary} is introduced. As one of the foundations of chiplet architecture, it quantitatively models the manufacture and non-recurring engineering cost of multi-chiplet systems and provides key insights into the economy and scalability of chiplet architecture. Cost reduction is the fundamental logic hidden behind Moore's Law, profoundly affecting the design of integrated circuits and computer architectures. Also, cost is a key factor throughout this thesis.
+  
+  Then, four innovations in chiplet network architecture are introduced. The \textit{scalable multi-chiplet interconnection methodology} scales large high-radix interconnection systems with 2D-mesh-NoC-based chiplets, achieving more efficient and flexible interconnection without changing much of the typical NoC architecture; the \textit{heterogeneous interface} architecture enables more flexible chiplet interconnection networks by combining the advantages of different physical interfaces and covers up the disadvantages of both; the \textit{chiplet network simulator} is designed for large-scale chiplet networks and is an order of magnitude faster than existing simulators while verifying necessary microarchitectures and maintaining cycle accuracy; the \textit{Ring Road} on-chip network reduces router overhead, isolates the on/off-chip traffic, and decouples the inter/intra-chip routing design while maintaining flexibility and scalability. 
+  
+  Lastly, two system innovations that scale chiplet networks into large-scale data centers and supercomputers are presented. The \textit{switch-less Dragonfly on wafers} utilizes wafer-scale integration to eliminate expensive high-radix switches of existing supercomputer networks while increasing local throughput and maintaining global throughput; the \textit{RailX} is further optimized for large-scale AI training workloads by introducing optical circuit switching, achieving $10\times$ All-Reduce bandwidth and $2\times$ All-to-All bandwidth compared with the state-of-the-art solution.
+
+  Chiplet architecture is an important technology path for the further scaling of computing systems in the post-Moore era. The series of studies presented in this thesis addresses key scientific issues in the emergence to maturity of chiplet architecture, advancing the development of computer architectures in the post-Moore era, and providing new solutions for future computing workloads.
+
+  % Use comma as separator when inputting
+  \thusetup{
+    keywords* = {chiplet, advanced packaging, high-performance interconnection network, topology, routing algorithm},
+  }
+\end{abstract*}

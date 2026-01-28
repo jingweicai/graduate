@@ -1,0 +1,302 @@
+% !TeX root = ../thesis.tex
+
+\chapter{中文附录}
+\section{引文}
+近年来，如图~\ref{apendix:Deficit}所示\cite{KartikHegde_AcceleratingDeepLearning_2022}，计算需求，特别是人工智能工作负载，正在快速增长，其增长速度远超硬件的提升速度。然而，驱动硬件进步数十年的摩尔定律正变得越来越难以维持。传统的大规模集成电路系统是在单片（monolithic die）上实现的，也被称为片上系统（SoC）。由于制造工艺的进步已逐渐放缓，并且硅片面积正接近光刻掩模版的极限（例如，ASML 光刻的最大尺寸为 $26mm \times 33mm$\cite{_MaskReticleWikiChip_, Huang_WaferLevelSystem_2021}），传统单片芯片的性能增长即将停滞\cite{Loh_UnderstandingChipletsToday_2021, Naffziger_PioneeringChipletTechnology_2021}。因此，计算工作负载与硬件性能之间的差距正在不断扩大。为了弥补这一巨大差距，我希望探索在后摩尔时代更具可扩展性的计算机体系结构。
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=0.99\linewidth]{../figures/INTRO/workload-hardware.pdf}
+    \caption{不断扩大的性能缺口。\label{apendix:Deficit}}
+  \end{figure}
+  
+  近年来，集成技术取得了显著进展。先进的封装技术，如CoWoS（Chip-on-Wafer-on-Substrate）和InFO-SoW（Integrated Fan-Out System-on-Wafer），使得多个芯粒（Chiplet）能够以超高带宽和超低延迟进行集成，从而突破了传统单片芯片的“面积墙”。芯粒架构通过高密度集成多个硅片形成一个系统，被摩尔本人~\cite{Moore_CrammingMoreComponents_1965}及整个半导体行业视为摩尔定律的延续。然而，在芯粒架构的发展过程中，仍然存在许多亟待解决的挑战，特别是在基于芯粒的互连网络架构方面：
+  \begin{itemize}
+    \item 芯粒架构的成本优势虽被广泛认可，但由于封装和芯粒间接口的开销，要实现并不容易。与单芯片系统相比，多芯粒系统的成本在超大规模集成电路（Very Large-Scale Integration，VLSI）系统设计的早期阶段难以准确估计。如果没有充分的评估，采用芯粒架构可能会导致更高的成本。先前的研究~\cite{Stow_CostAnalysisCostdriven_2016, Stow_CosteffectiveDesignScalable_2017}主要关注硅片的制造成本，但忽略了基板、接口开销和一次性工程（Non-Recurring Engineering，NRE）成本等其他重要因素。
+
+    \item 2D-mesh拓扑由于易于实现而广泛用于片上网络。然而，在具有数千个核心的大规模多芯粒系统中，2D-mesh网络的性能较差，因为其直径高达$O(\sqrt{N})$。大规模与小规模网络的设计方法存在显著差异，因此基于典型芯粒架构开发不同规模的系统存在挑战。同时，传统的路由技术无法直接应用于多芯片系统。将多个片上网络连接在一起可能会导致潜在的死锁和拥塞问题~\cite{Yin_ModularRoutingDesign_2018, Majumder_RemoteControlSimple_2021}。此外，路由算法与系统的拓扑和规模密切相关，使得系统扩展变得困难。
+    
+    \item 不同场景和规模的系统对芯粒接口有不同的需求。并行接口具有低延迟和低功耗的特点，但系统只能采用诸如2D-mesh等平面拓扑~\cite{Pal_Designing2048Chiplet14336Core_2021, Nassif_SapphireRapidsNextGeneration_2022}。构建更高阶（high-radix）网络需要长距离高带宽的串行接口，但串行接口的高延迟和高功耗使其不适用于小型低功耗系统。在频繁的“片上”通信（如握手、同步和一致性协议）中，低延迟的并行接口更适合~\cite{Diemer_EfficientThroughputguaranteesLatencysensitive_2010, Li_ALPHALearningEnabledHighPerformance_2021, Yao_OpportunisticCompetitionOverhead_2016, Nassif_SapphireRapidsNextGeneration_2022}。然而，对于大规模数据的全归约（all-reduce）操作，高吞吐量、长距离的串行接口是更好的选择~\cite{Nukada_PerformanceOptimizationAllreduce_2021, Kadiyala_COMETComprehensiveCluster_2022, Jouppi_TPUV4Optically_2023, Jouppi_TenLessonsThree_2021}。在现代高性能系统中，各种网络流量模式同时存在~\cite{Avin_ComplexityTrafficTraces_2020, Bienia_BenchmarkingModernMultiprocessors_2011, Chandrasekaran_UnderstandingTrafficCharacteristics_2017}。换句话说，并不存在一个全场景通用的芯粒接口。
+
+    \item 芯粒架构通过超高密度互连集成多个硅片，打破了片上和片外网络的边界。对整个网络进行统一仿真对于评估芯粒互连架构至关重要。在多芯片系统中，低延迟片上路由器通过纳秒级低延迟链路直接连接，缓冲区、链路、交换结构和流控等电路级微架构特性对系统性能有显著影响。因此，使用精细的时钟级精度仿真器评估芯粒网络是必要的。然而，现有的时钟级精度工具由于主要针对小规模片上网络~\cite{Jiang_DetailedFlexibleCycleaccurate_2013,Agarwal_GARNETDetailedOnchip_2009,Ben-Itzhak_HNOCSModularOpensource_2012,Catania_NoximOpenExtensible_2015}（规模通常不超过几十个路由器），在大规模芯粒网络上的仿真效率较低。
+
+    \item 基于芯粒的直接网络存在多个重要的局限性。首先，逐步通过片上路由器传输的方式对于长距离流量而言开销高且不必要，特别是在需要跨越多个芯片和跳数时。另一种无路由器的方案，即隔离多环（Isolated Multi-Ring）~\cite{Liu_IMRHighPerformanceLowCost_2016,Alazemi_RouterlessNetworkonChip_2018,Lin_DeepReinforcementLearning_2020}，由于路由灵活性受限且布线需求巨大，不适用于大规模多芯片系统。其次，跨芯片流量会拖累局部（芯片内）网络性能。在现有的向外扩展（scale-out）系统中，长距离数据包需要穿越多个芯片才能到达目标，当原本设计良好的片上网络受到大量跨芯片流量的影响时，局部片上网络性能会因网络资源竞争而恶化~\cite{Lotfi-Kamran_NOCOutMicroarchitectingScaleOut_2012,Nychis_OnchipNetworksNetworking_2012}。第三，芯片内外的路由设计相互纠缠。片上网络通常采用平面拓扑（例如，2D-mesh），但芯片间互连可能采用高阶拓扑。片外互连混合了不同维度和方向，导致复杂的死锁情况。
+
+    \item 在将晶圆级系统扩展到大规模超级计算机时，面临诸多挑战。首先，现有的基于晶圆的系统，如Waferscale Processor~\cite{Pal_Designing2048Chiplet14336Core_2021}、Wafer-Scale GPU~\cite{Pal_ArchitectingWaferscaleProcessors_2019}、Wafer-Scale Engine (WSE)~\cite{Cerebras_WaferScaleDeepLearning_2019, Lauterbach_PathSuccessfulWaferScale_2021, Lie_CerebrasArchitectureDeep_2022} 和DOJO~\cite{Chang_DOJOSuperComputeSystem_2022, Talpes_DOJOMicroarchitectureTeslas_2022, GaneshVenkataramanan_ComputeEnablingAI_2022, Talpes_MicroarchitectureDOJOTeslas_2023}，均基于2D-mesh拓扑，由于直径较大，扩展性受限。其次，片外带宽远低于片上带宽，对分层结构和可配置性提出更高要求。第三，通过高阶拓扑连接多个晶圆上的2D-mesh会引入严重的路由问题，片上和片外路由必须联合设计和评估，而非独立设计。
+
+    \item 胖树（Fat-Tree）拓扑被广泛应用于现有的AI数据中心，但在提供充足带宽时成本极高~\cite{Hoefler_HammingMeshNetworkTopology_2022,Barroso_DatacenterComputerDesigning_2019,Gherghescu_IveGot99_2024,Gherghescu_LookTrainingLarge_2024}，特别是在超大规模环境下。基于交换机的网络拓扑的带宽和可扩展性受限于高阶交换机。此外，多级交换带来了显著的能耗和延迟开销~\cite{Greenberg_CostCloudResearch_2008,Popoola_EnergyConsumptionSwitchcentric_2018,VictorAvelar_AIDisruptionChallenges_2023,Katebzadeh_EvaluationInfiniBandSwitch_2020}，也可能限制系统扩展。直连网络虽然不需要高阶交换机，但仍面临可扩展性挑战。Torus拓扑适用于传统AI工作负载的流量~\cite{Jouppi_TPUV4Optically_2023,Google_TPUV4Document_}，但随着参数/激活规模的扩大，需要采用更多并行策略，如序列并行~\cite{Korthikanti_ReducingActivationRecomputation_2022}，专家并行~\cite{Rajbhandari_DeepSpeedMoE_2022}，导致AI任务在Torus上映射十分复杂。此外，规则和扭曲Torus网络的直径较大，且对分带宽不足，难以满足MOE和推荐模型的全互连流量需求~\cite{Camara_TwistedTorusTopologies_2010}。新兴的芯粒网络架构提供了丰富的局部带宽，但跨封装带宽
+\end{itemize}
+
+
+
+
+\section{芯粒精算师: 定量成本模型和多芯粒架构探索}
+
+随着工艺技术的进步放缓，以及芯片面积接近光刻掩模版的极限，晶体管数量的增长将趋于停滞~\cite{Loh_UnderstandingChipletsToday_2021, Naffziger_PioneeringChipletTechnology_2021}。与此同时，大型芯片意味着更复杂的设计，而较低的良率会导致更高的成本。将单片 SoC 重新划分为多个芯粒可以提高芯片良率，从而降低成本。除了良率的提升外，芯粒复用也是芯粒架构的另一大特点。在传统的设计流程中，IP 或模块复用被广泛采用，但这一方法仍需重复进行系统验证和芯片物理设计，而这两项工作占据了很大一部分一次性工程（NRE）成本。因此，芯粒复用可以避免重复的系统验证和物理设计，从而节省更多成本。
+
+近年来，关于多芯片系统的研究成果层出不穷，尤其是在工业界的产品实践中~\cite{Naffziger_PioneeringChipletTechnology_2021, Xia_Kunpeng920First_2021}，芯粒架构的经济效益已经成为共识。然而，在实际应用中，我们发现多芯粒系统的成本优势并不容易实现，因为封装和芯粒间（D2D）互连接口带来了额外的开销。与 SoC 相比，多芯粒系统的成本在 VLSI 系统设计的早期阶段更难评估。如果缺乏精确的成本分析，盲目采用芯粒架构可能会导致更高的成本。已有研究~\cite{Stow_CostAnalysisCostdriven_2016, Stow_CosteffectiveDesignScalable_2017} 主要关注芯片和硅中介层的制造成本，但忽略了基板、D2D 互连开销和 NRE 成本等重要因素。
+
+为了更好地指导 VLSI 系统设计并阐明架构设计中的挑战~\cite{Loh_UnderstandingChipletsToday_2021}，如芯粒划分问题，我们构建了一个定量成本评估模型——芯粒精算师。我们的模型用于比较单片 SoC 和多芯粒集成之间的 RE（经常性工程）和 NRE（一次性工程）成本。由于该问题极为复杂，我们在模型中做出了一些必要的假设，以忽略次要因素：
+
+\begin{itemize} 
+  \item 在相同工艺节点下，所有芯粒使用同种芯粒间接口，仅通道数量不同； 
+  \item 该模型不考虑性能和功耗； 
+  \item NRE 成本的各个部分相互独立，因此可以分别进行估算。 
+\end{itemize}
+
+除了上述假设之外，模型中还使用了许多其他近似处理。有关更多详细信息，请参考我们开源的模型代码\footnote{代码仓库 URL: https://github.com/Yinxiao-Feng/DAC2022.git}。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.99\textwidth]{../figures/2022DAC/High_level.pdf}
+  \caption{统一成本模型 \label{appendix:fig:HL}}
+\end{figure}
+
+如图 \ref{appendix:fig:HL} 所示，我们的模型涉及三个核心概念：模块（module）、芯片（chip）和封装（package）。一组系统由一组模块构成，每个模块对应一个芯粒。每个系统可以是直接由模块构成的SoC，也可以是由多个芯粒组成的多芯粒集成。其关系可描述如下：
+
+\begin{equation}
+  \begin{aligned}
+    m_i \in       & \{m_1, m_2, ... , m_{D2D}\} = M                         \\
+    c_i =         & ~{\rm Chip}(\{m_i, m_{D2D}\}) \in C                     \\
+    {\rm SoC}_j = & ~{\rm Package}({\rm Chip}(\{m_{k_1}, m_{k_2}, \dots\})) \\
+    {\rm MCM}_j = & ~{\rm Package}(\{c_{k_1}, c_{k_2}, \dots\}) ,
+  \end{aligned}
+\end{equation}
+
+其中，$m$ 代表模块，$c$ 代表 芯粒，$\rm Package(\cdot)$ 和 $\rm Chip(\cdot)$ 分别表示将芯片封装成系统和将模块封装成芯片的方法。与传统意义上的“模块”概念不同，我们的“模块”指的是一个不可分割的功能单元组。D2D 接口是一个特殊的模块，每个模块都需要 D2D 接口来组成一个芯粒。在不同工艺节点下，D2D 接口被视为不同的独立模块。该模型基于三种典型的多芯粒集成技术。基于该模型，我们从多个角度探讨了不同集成方案的总成本。外部数据~\cite{Khan_AIChipsWhat_2020, Wesling_HeterogeneousIntegrationRoadmap_2019, Li_ChipletHeterogeneousIntegration_2020, Cutress_BetterYield5nm_2020, Drucker_OpenDomainSpecificArchitecture_2020} 以及内部数据相结合，以提供相对准确的最终总成本估算。
+
+总体而言，本研究成果在 VLSI 系统设计方面作出了以下主要贡献：
+\begin{itemize}
+  \item 我们将单片 SoC 和多芯粒集成抽象为不同层次的概念：模块、芯片和封装，并基于此构建了统一的架构模型。 \item 我们提出了一个定量成本模型芯粒精算师，用于估算系统总成本的各个组成部分。据我们所知，该模型首次引入了 D2D 互连开销和 NRE 成本。 \item 基于芯粒精算师，我们提出了一种用于芯粒架构决策的分析方法，包括：选择哪种集成方案、如何划分芯粒、是否复用封装、如何利用芯粒复用性，以及如何利用异构集成。
+\end{itemize}
+
+\section{一种设计高效芯粒互连网络的可扩展方法}
+随着先进封装技术和高速有线通信技术的不断进步，多个芯粒可以在极高的布线密度和通信带宽下实现互连~\cite{Synopsys_DesignWareDietoDie112G_2021, Synopsys_DesignWareDietoDie112G_2021, Huang_WaferLevelSystem_2021, Shin-HuaChao_FineLineSpace_2016}。来自学术界和工业界的众多优秀研究成果已经采用了多芯粒架构，并被认为能够提供更高的性能和更强的可扩展性~\cite{Naffziger_PioneeringChipletTechnology_2021,Naffziger_22AMDChiplet_2020, Gomes_PonteVecchioMultiTile_2022, Shao_SimbaScalingDeepLearning_2019,Zaruba_Manticore4096CoreRISCV_2021,Zimmer_032128TOPSScalable_2020, Chang_DOJOSuperComputeSystem_2022, Talpes_DOJOMicroarchitectureTeslas_2022, Lie_CerebrasArchitectureDeep_2022, Lauterbach_PathSuccessfulWaferScale_2021, Cerebras_WaferScaleDeepLearning_2019, Lie_MultiMillionCoreMultiWafer_2021}。
+
+然而，这些系统的互连网络设计仍然较为原始，并未充分利用芯粒架构的优势。它们很少采用长连接链路或更小直径的拓扑结构，同时，许多网络设计只能适配特定系统，缺乏通用性。构建基于芯粒的互连网络仍然面临诸多挑战。
+
+一个挑战是在不同规模的系统中使用相同的芯粒进行构建。芯粒在不同系统之间的复用是芯粒架构的一大优势~\cite{Stow_CostAnalysisCostdriven_2016}。如果一个芯粒能够用于构建多个系统，将显著节省设计成本并缩短迭代时间。2D-mesh拓扑因其易于实现，被广泛应用于片上网络（NoC）\cite{BedfordTaylor_ScalarOperandNetworks_2003,Gratz_ImplementationEvaluationOnChip_2006,Vangal_80Tile128TFLOPSNetworkonChip_2007,Tilera_TileProcessorArchitecture_2007,Vaidyanathan_IntroducingParallelDistributed_2015}。然而，在拥有数千个核心的大规模系统（如晶圆级系统）中~\cite{Chang_DOJOSuperComputeSystem_2022, Talpes_DOJOMicroarchitectureTeslas_2022, Lie_CerebrasArchitectureDeep_2022, Lauterbach_PathSuccessfulWaferScale_2021, Cerebras_WaferScaleDeepLearning_2019, Lie_MultiMillionCoreMultiWafer_2021}，2D 网格网络的性能较差，因为其直径可达 $O(\sqrt{N})$。大规模和小规模网络的设计方法存在显著差异，因此，基于相同芯粒构建不同规模的系统仍然是一个重大挑战。
+
+另一个挑战是多芯粒系统的路由设计。互连网络对路由问题尤为敏感，而传统的路由技术无法直接应用于多芯粒系统。将多个片上网络连接在一起可能会引发死锁和拥塞问题~\cite{Yin_ModularRoutingDesign_2018,Majumder_RemoteControlSimple_2021}。同时，路由算法与系统的拓扑结构和规模密切相关，因此很难扩展。目前几乎所有最新研究都采用了简单但效率低下的互连和路由方案，例如2D-mesh上的维序路由（Dimension-Order-Routing）\cite{Shao_SimbaScalingDeepLearning_2019, Zimmer_032128TOPSScalable_2020, Chang_DOJOSuperComputeSystem_2022, Talpes_DOJOMicroarchitectureTeslas_2022, Lie_CerebrasArchitectureDeep_2022, Lauterbach_PathSuccessfulWaferScale_2021, Cerebras_WaferScaleDeepLearning_2019, Lie_MultiMillionCoreMultiWafer_2021, Vivet_IntAct96CoreProcessor_2021, Pal_Designing2048Chiplet14336Core_2021, Ignjatovic_WormholeAITraining_2022}。这些原始方法不仅限制了性能和可扩展性，还无法提供有效的容错机制。
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2023HPCA/architecture.pdf}
+  \caption{芯粒（Chiplet）上的网络及接口分组。(a) 基于典型虚拟信道（virtual channel）微架构 的 36 个（$6\times 6$ 2D-mesh）片上网络 节点；(b) 核心节点（core nodes）与边缘节点（edge nodes）的节点标记；(c) $6\times 6$ 2D-mesh 的两种接口分组方案：radix-4 和 radix-10。 \label{appendix:fig:HPCA}}
+\end{figure}
+
+为了解决上述挑战，我们提出了一种新的基于软件的方法，以重新定义基于传统2D-mesh片上网络结构的芯粒拓扑特性。我们将芯粒的接口节点划分为多个抽象接口，使得高阶拓扑可以灵活互连。在我们的方法中，片上网络的每个节点都带有一个用于路由的标签。我们在 图 \ref{appendix:fig:HPCA}(b) 中展示了一个适用于我们路由算法的实际标签示例。对于所有核心节点，其标签与传统 2D-mesh网络相同；而对于边缘节点，它们形成一个负标签环（negative label ring）。通过这样的标签设计，任何来自核心节点的消息都可以沿着标签递减的路径遍历所有接口；同时，任何来自接口节点的消息都可以沿着标签递增的路径遍历所有核心节点。在进行芯粒互连之前，必须对芯粒进行必要的抽象。虽然 2D-mesh片上网络 的每个节点通常为 4 端口（不包括本地端口），但整个芯粒本质上是一个高阶节点，具有大量外部接口。然而，如果将每个边缘节点的芯粒-to-芯粒接口都视为芯粒节点的独立输出端口，那么芯粒的端口数会过高，而每条通道的带宽可能不足以满足芯粒间的通信需求。因此，我们采用 “接口分组” 方法，将相邻的边缘节点聚合成若干个组。在同一个分组内的所有物理接口被视为一个软件定义的接口，并始终连接到另一个芯粒上相同规模的接口。如 图 \ref{appendix:fig:HPCA}(c) 所示，在一个 $6 \times 6$ 的2D-mesh中，共有 20 个边缘节点，这些节点可以被聚合成 4 组或 10 组。通过接口分组，芯粒可以被视为一个具有灵活端口数（radix）的大节点，从而允许我们在不改变原始 片上网络 结构的前提下灵活调整芯粒的端口数量和每条边的通信带宽。由于这种分组方法完全基于软件定义，无需对硬件架构进行更改，因此具有较强的适应性和可扩展性。
+
+在这样的 2D-mesh 片上网络 高阶网络中，我们基于负优先路由提出了一种可扩展的无死锁自适应路由算法。此外，我们引入 “安全/不安全”流控机制以简化路由设计，并提出网络交织方法，以提高接口带宽利用率。本工作的主要贡献如下：
+\begin{itemize} \item 我们提出了一种方法，使基于 2D-mesh 片上网络 的芯粒能够构建大规模高阶互连系统，在不大幅修改典型 片上网络 架构的情况下，实现更高效、更灵活的互连。
+\item 我们设计了一种可扩展的无死锁自适应路由算法，适用于芯粒互连网络。该算法适配大多数常见拓扑结构，包括 nD-mesh、超立方体（hypercube）和全连接拓扑。与传统的 MFR 路由相比，该算法采用模块化标记方式，便于在芯粒级别进行扩展。
+\item 我们引入了 “安全/不安全”流控机制 和 “网络交错”方法，以解决新的互连设计可能带来的潜在问题。这两种方法具有通用性，可适用于大多数多通道互连网络。
+\item 我们基于时钟级精度的 C++ 仿真器，对不同的架构和流量模式进行了评估。实验结果表明，与传统的基于平面拓扑的多芯粒互连网络相比，我们的方法在性能上具有显著优势。
+\end{itemize}
+
+\section{异构芯粒间接口：实现更灵活的芯粒互连系统}
+在先进封装技术和高速有线通信技术的支持下，多个硅片可以以高密度和高通信带宽进行集成~\cite{Liu_256GbMmshorelineAIBCompatible_2021, Mahajan_EmbeddedMultidieInterconnect_2019, Ingerly_Foveros3DIntegration_2019, Huang_WaferLevelSystem_2021, Shin-HuaChao_FineLineSpace_2016}。由于 2.5D 封装提供了丰富的高质量布线资源，芯粒之间可以通过各种芯粒间接口进行互连~\cite{Ma_SurveyChipletsInterface_2022, Lin_ScalableChipletPackage_2020, Carusone_UltrashortreachInterconnectsPackagelevel_2016, Synopsys_DesignWareDietoDie112G_2021, Kehlet_AcceleratingInnovationStandard_, Ardalan_OpenInterChipletCommunication_2021, _UniversalChipletInterconnect_2024, Wade_TeraPHYChipletTechnology_2020}。尽管现有的接口技术在多个指标上有所不同，大多数当前的多 芯粒系统仍会根据主要需求选择其中一种~\cite{Shao_SimbaScalingDeepLearning_2019, Naffziger_PioneeringChipletTechnology_2021, Gomes_PonteVecchioMultiTile_2022, Talpes_DOJOMicroarchitectureTeslas_2022}。工业界的多个组织正在推动某种统一标准的技术路线~\cite{JEDEC_SerialInterfaceData_2017, _CommonElectricalCEI_2024, Sheikh_CHIPSAllianceAIB3D_2021,_AIBSpecification20_2022, _BunchWiresPHY_, _UniversalChipletInterconnect_2024, Ma_OpenHBISpecificationVersion_2021}，但目前尚未出现一个真正“全场景通用”的接口来支持芯粒的自由复用。现有的统一接口灵活性不足，难以适应复杂和混合的网络流量，选择任意一种接口都意味着无法很好地适应某些特定的工作负载。基于上述统一接口的局限性，我们提出了异构接口结构（Heterogeneous Interface，Hetero-IF），用于解决不同场景下的灵活性问题。
+
+% \textbf{挑战 1：异构接口的设计和调度复杂且难以优化。} 首先，接口微架构对系统性能有巨大影响，但目前基于异构接口的多 芯粒系统架构仍缺乏深入探讨。其次，异构接口可能会带来潜在问题，如乱序传输（out-of-order delivery）\cite{Palesi_EfficientTechniqueInorder_2010} 和 异构路由（heterogeneous router）\cite{Ben-Itzhak_HeterogeneousNoCRouter_2015}。此外，异构接口的调度比统一接口更加复杂（但更灵活），这些问题需要充分研究和解决。
+
+% \textbf{挑战 2：基于异构接口的多 芯粒系统需要高效且无死锁的互连方案。} 互连网络的性能对拓扑结构和路由策略高度敏感。然而，连接多个片上网络（NoC）可能会导致死锁和拥塞问题~\cite{Majumder_RemoteControlSimple_2021, Yin_ModularRoutingDesign_2018, Feng_ScalableMethodologyDesigning_2023}。异构接口增加了额外的互连和路由选择，使问题变得更加复杂。为了充分利用异构接口，需要设计灵活的互连方案并采用高效的无死锁路由算法。
+% 为了解决上述挑战，我们对异构接口及基于异构接口的多 芯粒系统的实现、微架构、调度、互连和路由问题进行了深入探讨。此外，我们进行了广泛的评估，包括电路验证、性能仿真、功耗估算和可扩展性分析。
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.95\linewidth]{../figures/2023MICRO/architecture.pdf}
+  \caption{异构接口架构 (a) 统一接口; (b) 异构物理层; (c) 异构通道。\label{appendix:fig:hetero-IF}}
+\end{figure}
+如图\ref{appendix:fig:hetero-IF} 所示，根据是否共享适配器，异构接口可以通过两种方式实现：异构物理层（heterogeneous PHY） 和 异构通道（heterogeneous channel）。另一种异构协议（heterogeneous protocol）接口已被广泛应用，因此本章不再讨论。例如，Compute Express Link（CXL）、PCI Express 和以太网协议可以通过 SerDes物理层同时使用~\cite{Drucker_OpenDomainSpecificArchitecture_2020, JEDEC_SerialInterfaceData_2017, Sharma_ComputeExpressLink_2022}。
+
+如图 \ref{appendix:fig:hetero-IF}(b) 所示，异构物理层通过两种不同的物理层替换统一接口的物理层，而物理层之上的协议层（适配器）仍然保持统一。从路由器的角度来看，端口仍然与传统的统一接口相同。通过异构物理层接口传输的数据由协议层的适配器进行处理。异构物理层的一大优势在于它能够兼容现有的互连架构。由于无需重新设计路由器，且几乎不会引入额外的路由问题，基于统一接口的原始多 芯粒系统可以直接迁移，并且不受封装技术的影响。此外，异构物理层的使用也非常简单，只需通过适配器决定数据流在两种物理层之间的分配方式。异构物理层接口可以通过以下两种方式使用。排他（Exclusive）模式：在不同场景下，仅使用其中一种接口。例如，在低功耗系统中仅使用并行接口，在基于普通基板的低成本系统中仅使用串行接口。这些应用通常不以性能为主要目标，而是受功耗或成本约束。这种使用模式不会改变传统的统一接口架构，但允许 芯粒在不同系统中使用不同的接口，从而扩大应用范围。虽然未使用的接口会占用一定的芯片面积，但由于无需针对不同应用场景重新设计芯粒，整体成本反而得到了显著降低。协同（Collaborative）模式：在此模式下，同时使用两种不同的物理层进行数据传输。与排他模式相比，协同模式可以构建更灵活、更高效的互连网络。例如，如 图 \ref{appendix:fig:network}(a) 所示，一个异构 2D-环形网络（heterogeneous 2D-torus） 由异构物理层接口连接而成。相比于基于统一并行接口的传统 2D-mesh网络，异构物理层网络的直径更小，减少了通信跳数。相比于基于统一串行接口的高阶网络，异构物理层网络的短距离通信延迟和功耗更低。在协同模式下，路由问题仍然与传统方法相同，但需要额外的PHY 调度策略。
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.95\linewidth]{../figures/2023MICRO/network.pdf}
+  \caption{基于异构接口的芯粒互连网络架构 \label{appendix:fig:network}}
+\end{figure}
+
+如 图 \ref{appendix:fig:hetero-IF}(c) 所示，异构通道通过两种独立的接口替换原始统一接口。从路由器的角度来看，原始物理通道被拆分为两个不同的通道。这两个通道可以共享同一个虚拟通道，或者分别使用独立的虚拟通道。通过异构通道接口传输的数据由路由器直接处理。与异构物理层接口相比，异构通道的最大优势是互连设计的灵活性。由于两个通道是完全独立的，接口节点可以分别与两个不同的接口节点互连，从而提供丰富的路由多样性和调度空间。然而，由于路由器的端口数发生了变化，互连网络需要重新设计，路由器必须额外处理路由决策和通道选择问题。异构通道接口的使用方式与异构物理层接口类似。此外，由于两个物理通道是完全独立的，数据包可以选择：通过短距离并行接口低延迟、低功耗地传输到相邻芯粒或者通过长距离串行接口直接传输到远距离的芯粒。
+物理传输线路可以位于先进中介层或普通基板上。同时，也可以构建多层次互连。例如，如图 \ref{appendix:fig:network}(b) 所示：四个 芯粒通过并行接口连接成 2D-mesh，提供低延迟、低功耗的短距离通信。串行接口连接远距离节点，并可扩展至封装外进行更高层次的互连。相比于基于异构物理层的网络，尽管串行接口仍然与并行接口同时存在，但它们可以连接到不同的远程节点。由于串行接口不再受限于短距离的并行接口，基于异构通道的多 芯粒互连网络具有更高的灵活性和更高的效率。
+
+我们还对异构接口及基于异构接口的多芯粒系统的实现、微架构、调度、互连和路由问题进行了深入探讨。此外，我们进行了广泛的评估，包括电路验证、性能仿真、功耗估算和可扩展性分析。本工作的主要贡献如下：
+
+\begin{itemize}
+\item 我们分析了多芯粒系统中统一芯粒间接口的局限性，并提出了一种异构接口架构。这是首次针对基于异构接口的多 芯粒架构进行深入探讨。
+\item 我们提出了两种典型的异构接口实现方案：异构物理层（Hetero-PHY） 和 异构通道（Hetero-Channel）。我们介绍了这两种方案的特性及其适用场景，并探讨了异构接口的微架构及其开销。
+\item 我们设计了基于异构接口的多 芯粒互连网络，并提出了一种无死锁路由算法和灵活调度方法。评估结果表明，在各种工作负载下，异构接口能够显著提升性能并降低能耗。
+\end{itemize}
+
+\section{通过时钟级精度并行仿真评估基于芯粒的大规模互连网络}
+
+基于 芯粒的系统与传统系统存在显著差异，芯粒互连架构尚未得到充分评估。需要评估的关键设计问题包括但不限于：\textbf{1)} 片上（on-chiplet）和片间（off-chiplet）网络的分层拓扑结构; \textbf{2)} 异构网络上的路由算法; \textbf{3)} 异构 芯粒间接口与异构路由器的影响;\textbf{4)} 在不同工作负载下，各种拓扑结构的整体性能。评估 芯粒互连网络主要面临两个挑战：
+
+\textbf{挑战 1：评估 芯粒互连架构需要对整个网络进行统一仿真。} 传统的片上网络和芯片间网络通常是独立设计的。片上网络连接到交换机，而片外网络由多个交换机构建，并不考虑片上网络的架构。然而，芯粒架构集成了多个硅片，具有超高密度和互连能力，突破了片上与片外网络的边界。多个 芯粒的片上路由器直接通过低延迟的片外链路互连，形成大规模异构网络，从而导致以下潜在问题：\textbf{1)} 由于 芯粒网络与片上网络紧密耦合，因此无法单独评估 芯粒网络~\cite{Yin_ModularRoutingDesign_2018}。\textbf{2)} 芯粒互连网络的规模远大于传统片上网络~\cite{Chang_DOJOSuperComputeSystem_2022}。\textbf{3)} 片上/片外链路及路由器在机制、带宽和延迟上存在异构性，现有仿真工具无法统一准确建模。
+
+\textbf{挑战 2：现有网络仿真器在评估大规模 芯粒共享存储网络方面效率低下。} 片上网络和片外网络长期被视为两个独立领域，各自拥有丰富的评估工具。在传统片外网络中，链路和交换机（如以太网 Ethernet 和 InfiniBand）的延迟通常在微秒级~\cite{Sella_FECKilledCutThrough_2018,Katebzadeh_EvaluationInfiniBandSwitch_2020}，因此粗粒度事件驱动（event-based）仿真器就足以满足需求。但在多 芯粒系统中，片上路由器直接通过纳秒级低延迟链路互连（例如 UCIe）~\cite{_UniversalChipletInterconnect_2023}，其性能受到微架构特性（buffer、链路、交换和流控）的显著影响。因此，需要细粒度时钟级精度仿真器来进行精确评估。
+
+然而，现有时钟级精度仿真工具在大规模 芯粒互连网络中的效率低下，主要原因有两点：\textbf{1)} 现有仿真器完整建模了 RTL 路由器，包括许多非关键电路行为（例如，握手协议和Round-Robin轮询仲裁），导致仿真速度缓慢。\textbf{2)} 复杂的资源依赖和竞争（线程同步）使得网络仿真难以并行化。因此，我们针对这两个问题提出了优化方案：针对第一点，我们适当牺牲非必要建模，在保证关键微架构和时钟级精度性的前提下加速仿真速度。针对第二点，我们采用基于原子操作的多线程机制，实现高效的数据包并行（packet-parallel）仿真，在保证一致性的同时显著提升仿真速度。最终，我们开发了芯粒网络仿真器（Chiplet Network Simulator，CNSim）——一种时钟级精度的数据包并行（packet-parallel）网络仿真器，能够系统化、高效地评估 芯粒互连架构。如 图 \ref{appendix:fig:simulator} 所示，我们提出了一种新的基于数据包（packet-centric）的架构，该架构结合了基于周期（cycle-based） 和 离散事件仿真器的优势。在仿真过程中，系统维护一个按照注入时间排序的数据包队列，每个数据包在每个周期都会按顺序进行更新。每个数据包存储的状态信息包括路由结果、分配的缓冲区、交换分配状态、每个 flit（流片）的传输轨迹以及必要的统计信息。每个数据包的更新过程相当于在离散事件仿真器中处理一系列事件，包括路由计算、虚拟信道分配、交换分配、链路传输和 flit 传输。
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2024ATC/simulator.pdf}
+  \caption{基于数据包的网络仿真器。关键状态值存储在数据包中，而非网络中。 \label{appendix:fig:simulator}}
+\end{figure}
+
+资源分配的建模方式需要优化。基于数据包的架构可以直接高效地实现先注入先服务（First-Inject-First-Serve）策略。 图 \ref{appendix:fig:simulator} 所示，流量管理器（traffic manager） 注入的数据包被附加到数据包队列的末尾。当某个数据包到达目标节点时，它将被移除，而不会影响队列中其余数据包的顺序。由于单线程仿真器 在每个周期内按顺序处理数据包队列，因此只要可用资源直接分配给请求的数据包，先注入先服务分配策略就可以自然实现。这一机制避免了复杂的请求-资源映射管理，从而大幅提升仿真速度。除了 先注入先服务策略外，先到先服务（First-Come-First-Serve）也可以通过为每个路由器维护一个独立的数据包队列来轻松实现。然而，完全实时的资源管理可能会导致进程顺序引起的偏差。例如，假设一个较早的数据包在同一周期内释放其占用的资源（如物理链路），那么较晚的数据包可能会立即获取该资源，这可能违反硬件机制。因此，我们仍然会记录关键资源状态（如物理链路），并在所有数据包处理完成后统一更新资源状态。这一方案可视为时钟级同步，它对于保证仿真精度至关重要。同时，数据包驱动架构和时钟级同步同步机制 可以与多线程仿真兼容。
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2024ATC/packet-parallel.pdf}
+  \caption{数据包并行方法。
+  每个工作线程（worker）依次从队列中获取一个数据包进行处理。先处理的数据包优先获得资源分配，而不考虑后续请求，即近似的先注入先服务（first-inject-first-serve）。 \label{appendix:fig:packet-parallel}}
+\end{figure}
+
+并行计算可以显著加速仿真；然而，实现高效的并行仿真并不容易。传统的基于网络的并行方法具有一定局限性，因此我们提出了一种新的基于数据包的并行方法，以支持数据包的并行处理。如图 \ref{appendix:fig:packet-parallel} 所示，数据包队列被视为一个共享的任务池，所有工作线程可以从任务池中获取数据包并进行处理。每个工作线程按顺序从队列中获取一个或多个数据包，并独立执行计算。在一次并行计算完成后，大部分数据包的状态已被更新，但涉及关键资源（如缓冲区和链路） 的数据包会被标记为特殊状态。随后，主线程负责执行所有必要的同步操作，包括更新链路状态 和 移除已完成的数据包。基于数据包的并行计算的一大优势在于数据包之间的资源竞争较少。例如，在同一路由器内，一个输入队列的队首数据包 仅与同一路由器的其他输入队列的队首数据包 竞争资源。因此，多线程导致的额外开销和误差可以忽略不计，从而实现高效、精准的并行仿真。本工作的主要贡献如下：
+\begin{itemize}
+\item 与现有小规模片上网络仿真器和大规模分布式网络仿真器不同，我们开发的芯粒网络仿真器旨在支持大规模多芯粒共享存储网络的仿真。
+\item 采用基于数据包并行的仿真架构 和 基于原子操作的多线程机制，仿真速度比现有工具提升$11\times \sim 14\times$，同时保持关键微架构的验证和时钟级精度性。
+\item 支持多种 芯粒互连网络特性，包括异构路由器/链路、分层拓扑、自适应路由，并可集成真实工作负载。仿真器及评估框架已开源，供社区使用。
+\end{itemize}
+
+\section{环形高速路：基于极坐标的可扩展二维片上网络架构}
+
+我们观察到现有芯粒扩展的网络架构存在多个重要缺陷。首先，逐步通过片上路由器传输数据的方式成本高昂且不必要，尤其是对于需要跨越多个 芯粒和多个跳数的长距离通信。当数据包在传统基于路由器的网络中传输时，即使仅仅是经过一个中间芯粒，每一跳仍需要经历完整的路由器逻辑处理，包括路由计算、资源分配、仲裁等操作。这些路由器在大规模网络中引入了显著的延迟和能耗开销~\cite{Kumary_46Tbits36GHzSinglecycle_2007,Hoskote_5GHzMeshInterconnect_2007,Howard_48CoreIA32Processor_2011, Farrokhbakht_UBERNoCUnifiedBuffer_2019}。然而，替代方案如无路由器片上网络架构，也被称为隔离多环（IMR, Isolated Multi-Ring）~\cite{Liu_IMRHighPerformanceLowCost_2016,Alazemi_RouterlessNetworkonChip_2018,Lin_DeepReinforcementLearning_2020}，由于路由灵活性受限且布线需求极高，难以适用于大规模多 芯粒系统。虽然路由器在多 芯粒网络中仍然是必不可少的，但它们应该尽可能减少使用频率，并降低开销。
+
+其次，跨芯粒通信会拖累本地（片内）网络的性能。在现有的规模扩展系统中，长距离数据包通常需要穿越多个 芯粒才能到达目的地。当一个原本设计良好的片上网络遭遇大量跨 芯粒流量时，本地性能会因网络资源竞争而下降~\cite{Lotfi-Kamran_NOCOutMicroarchitectingScaleOut_2012,Nychis_OnchipNetworksNetworking_2012}。通常情况下，研究者只关注整体网络性能，但在某些特殊场景中，如服务质量（Quality of Service，QoS）、实时计算（Real Time）、非一致性内存访问（Non-Uniform Memory Access，NUMA），本地通信的延迟至关重要~\cite{Rijpkema_TradeoffsDesignRouter_2003, Goossens_NetworksSiliconCombining_2002, Kasapaki_ArgoRealTimeNetworkonChip_2016,Panic_OnchipRingNetwork_2013}。一个具备局部感知能力的片上网络应该能够提供稳定可预测的本地通信性能，以避免长尾延迟问题。
+
+第三，跨芯粒和片内网络的路由设计相互纠缠。片上网络通常采用平面拓扑（如 2D-mesh），而芯片间的互连可以是高阶且多样化的。大多数片上路由算法依赖显式的维度方向（如 XY 路由、负优先路由），然而，片间互连会混合不同维度和方向，导致复杂的死锁问题。目前，片上/片间网络的路由必须作为一个整体进行设计，这种方式缺乏灵活性，难以适应可变和可重构的拓扑结构\cite{Yin_ModularRoutingDesign_2018, Hoefler_HammingMeshNetworkTopology_2022}。
+
+基于上述观察，我们的研究目标是设计一种新的网络架构，该架构能够降低路由器开销、隔离片上/片间流量，并解耦片内/片间的路由设计，同时保持灵活性和可扩展性。我们的灵感来源于现代交通系统。环形快速路广泛用于减少城市中心的拥堵，为不需要进入市中心的车辆提供绕城高速通道~\cite{Nugmanova_EffectivenessRingRoads_2019}。城市内部仍然保留必要的交叉口和交通站点，但长途交通被引导至环形高速路，以减少市区交通拥堵。同理，如果长距离数据包被引导至片上的无路由器“环形高速路”，则可以有效缓解芯片内部的网络拥塞，同时保持高效的路由灵活性。
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2024MICRO/architecture.pdf}
+  \caption{环形高速路架构概述。(a) 基于路由器的 $6\times 6$ 2D-mesh 经过修改，转换为带有三个环（rings）的环形高速路；(b) 路由器与无路由器环（router-less ring） 的接口架构。 \label{appendix:fig:ring-road}}
+\end{figure}
+
+环形高速路架构的基本理念是用多个独立环形通道替代部分传统的路由器间的连接通道。尽管仍然保留路由器以提供灵活的数据传输，但其使用频率和开销得到了显著降低。如 图 \ref{appendix:fig:ring-road}(a) 所示，在一个 $6\times 6$ 的 2D-mesh上，放置了 三个双向无路由器环，并移除了原本与这些环重叠的路由器间连接通道。同时，添加了若干对角线通道，确保每个节点都能通过径向通道连接到相邻的环。
+
+如 图 \ref{appendix:fig:ring-road}(b) 所示，路由器在转发数据包时，可以决定是否将数据包沿径向通道传输至其他环，或者直接注入本地环（local ring）。一旦数据包进入环网，它就可以绕环传播，而无需经过复杂的路由器逻辑处理，直到到达出口。在这样的网络结构下，任何数据包最多只需经历两个路由器径向跳步数就能到达目标环，相比于原始 2D 网格网络的最大直径（10 跳），这一方式显著减少了跳数。
+
+此外，环形高速路架构中的每个环可以拥有多个独立通道。一方面，已有研究表明片上存在大量未充分利用的布线资源（金属层）~\cite{Liu_IMRHighPerformanceLowCost_2016, Alazemi_RouterlessNetworkonChip_2018}，这些资源可以被用于构建多个并行的无路由器环。另一方面，相较于增加传统路由器之间的物理通道，添加独立的无路由器环成本更低，更易实现。
+这些独立的环形通道是隔离片上/片间流量、解耦片内/片间路由设计的关键。本工作的主要贡献如下：
+\begin{itemize}
+  \item 我们分析了当前由片上网络扩展的多芯片互连架构的缺陷，并提出了一种新的片上网络架构——环形高速路，它结合了路由器和无路由器环（router-less rings）的优势。
+  \item 作为一个独立的片上网络方案，环形高速路相较于传统基于路由器的 2D-mesh 具有更高的性能，并显著降低延迟、能耗和面积开销。作为多 Chip 网络的构建单元，环形高速路 隔离了片上/片间（on/off-chip）流量，并解耦了片内/片间（inter/intra-chip）路由设计。
+  \item 我们首次提出了 基于极坐标的 2D 拓扑结构及其对应的 无死锁路由算法（deadlock-free routing algorithms），这一创新对现有路由理论进行了重要扩展。在极坐标描述下，芯片的所有边缘接口都属于相同的$R$ 维度和方向，这为片内/片间路由设计的解耦带来了天然优势。
+\end{itemize}
+
+\section{无交换机Dragonfly：基于晶圆级集成的可扩展互连架构}
+
+主流的高性能计算（HPC） 互连架构主要基于交换机/路由器。高阶（high-radix）I/O 模块和交换机支持极低直径的网络拓扑，例如，Slim Fly\cite{Besta_SlimFlyCost_2014} 和 PolarFly\cite{Lakhotia_PolarFlyCostEffectiveFlexible_2022} 仅需 2 次交换机间跳数，Dragonfly\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008} 需要 3 跳，而三层 Fat-Tree\cite{Stunkel_HighspeedNetworksSummit_2020} 需要 4 跳。然而，高阶交换机的端口数量和单链路带宽均受限。目前，400G/800G 已是以太网或 InfiniBand 适配器/交换机所能提供的最大带宽~\cite{Routray_NewFrontiers800G_2020,Minkenberg_CopackagedDatacenterOptics_2021,NVIDIA_NVIDIAMQM9700NS2FQuantum_}。交换机与端点之间的物理通道有限，这显著限制了本地性能（即注入带宽），而注入带宽对于某些工作负载（如 AI 计算）至关重要~\cite{Hoefler_HammingMeshNetworkTopology_2022}。此外，高阶交换机价格昂贵，并且会引入额外的延迟和能耗开销~\cite{Barroso_DatacenterComputerDesigning_2019,Popa_CostComparisonDatacenter_2010,Greenberg_CostCloudResearch_2008,Popoola_EnergyConsumptionSwitchcentric_2018}。另一方面，现代计算芯片自身能够提供丰富的 I/O 和交换带宽，其性能并不逊色于传统交换芯片~\cite{Ignjatovic_WormholeAITraining_2022,Elster_NvidiaHopperGPU_2022,Fischer_91D17nm_2023}。因此，如何充分利用计算芯片的本地带宽成为一个值得关注的研究方向~\cite{Hoefler_HammingMeshNetworkTopology_2022}。
+
+晶圆级集成有望在单个封装内紧密集成数十个芯片，并提供超高的片上/片外带宽\cite{DouglasYu_TSMCPackagingTechnologies_2021,Chun_InFO_SoWSystemonWaferHigh_2020}。例如，Tesla DOJO 的单个计算 Tile 实现了 10TB/s 的片上对分带宽和 36TB/s 的片外总带宽\cite{Chang_DOJOSuperComputeSystem_2022}，这一数值远超任何现有的交换机。因此，如果芯片之间能够直接进行高带宽、低延迟的互连，不仅能提升网络性能，还能避免使用昂贵的高阶交换机。然而，扩展晶圆级系统至大规模超级计算机 仍面临诸多挑战：现有晶圆级系统的拓扑结构（如 2D-mesh）不具备良好的可扩展性。
+包括 Waferscale Processor\cite{Pal_Designing2048Chiplet14336Core_2021}、Wafer-Scale GPU\cite{Pal_ArchitectingWaferscaleProcessors_2019}、Wafer-Scale Engine（WSE）\cite{Cerebras_WaferScaleDeepLearning_2019, Lauterbach_PathSuccessfulWaferScale_2021, Lie_CerebrasArchitectureDeep_2022} 以及 DOJO\cite{Chang_DOJOSuperComputeSystem_2022, Talpes_DOJOMicroarchitectureTeslas_2022, GaneshVenkataramanan_ComputeEnablingAI_2022, Talpes_MicroarchitectureDOJOTeslas_2023}，这些系统均采用2D-mesh拓扑，但由于其较大的直径，难以扩展到更大规模。片外带宽远低于片上带宽，对网络分层结构和可配置性提出了更高要求。使用高阶拓扑互连 2D-mesh-on-wafer 会带来严重的路由问题，片上和片外路由必须联合设计与评估，而不能各自独立进行。
+
+\begin{figure}[tbh]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2024SC/architecture.pdf}
+  \caption{基于晶圆的无交换机 Dragonfly 网络层次结构。(a) 每个 芯粒具备 片上网络以及多个用于互连的短距离、低延迟接口。(b) 多个 芯粒通过平面拓扑（默认采用 2D-mesh） 互连，组成 C-group。C-group 边缘的剩余短距离接口 经过转换后，变为长距离接口，用于上层高阶互连。(c)(d) 每个 晶圆（Wafer） 由多个 C-group 组成，多个 晶圆（Wafers） 进一步组成 W-group（晶圆组）。在 W-group 内，所有 C-group 之间是全互连（fully-connected）。(e) 系统内的所有 W-group 也保持全互连（fully-connected），与 Dragonfly 拓扑结构 相同。\label{appendix:fig:sc}}
+\end{figure}
+
+受上述挑战的启发，我们提出了一种新的互连架构，称为 晶圆上的无交换机Dragonfly（Switch-less Dragonfly on Wafers）。如 图 \ref{appendix:fig:sc} 所示，晶圆上的无交换机Dragonfly互连架构由五个物理层级组成：Chiplet（小芯片）、C-group（芯粒组）、Wafer（晶圆）、W-group（晶圆组）和 System（系统）。与传统基于交换机的Dragonfly架构~\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008} 相比，该架构的芯粒相当于终端（处理器），C-group 相当于 Dragonfly 交换机（路由器），W-group 相当于 Dragonfly 的路由器组。  
+
+如 图 \ref{appendix:fig:sc}(a) 所示，芯粒是系统中最小的组成单元。每个 芯粒都具备片上网络（on-chip network）和$n$ 个互连接口。虽然 芯粒的总 I/O 端口数（包括内存和外设）可能远超 $n$，但我们仅关注用于互连的接口。这些物理链路原本是短距离（short-reach, SR）互连（如UCIe~\cite{_UniversalChipletInterconnect_2023} 或XSR SerDes~\cite{_CommonElectricalCEI_2024}），其延迟低、功耗小。  
+
+如图 \ref{appendix:fig:sc}(b)所示，多个 芯粒通过片上平面网络（on-wafer planar network）形成C-group（芯粒组）。我们选择2D-mesh作为 C-group 的默认拓扑结构，因为其连线短、易于实现。  每个 C-group 由$m \times m$ 个 芯粒组成。如果每个 芯粒在每条边上有$n/4$ 个端口，那么整个 C-group 具有$k = nm$ 个外部端口。  C-group等效于传统 Dragonfly 拓扑中的交换机，其交换功能由片上和 C-group 内部互连实现。所有$k$ 个短距离（short-reach，SR）外部接口通过转换模块转换为长距离（long-reach，LR）接口（如LR SerDes~\cite{_CommonElectricalCEI_2024} 或光~\cite{Maniotis_ScalingHPCNetworks_2020}），以支持上层高阶互连。  
+
+如图 \ref{appendix:fig:sc}(c)(d)所示，每个晶圆（Wafer）由$a$ 个 C-group 组成，而每个W-group（晶圆组）由$b$ 个晶圆组成。  在W-group 内的所有 $ab$ 个 C-group 之间是全互连（fully connected）；在同一晶圆内，每个 C-group 连接至其余$a-1$个 C-group；在不同晶圆之间，每个 C-group 连接至 W-group 内的其余$a(b-1)$个 C-group。  特殊情况如果$a=1$，则整个晶圆作为一个 C-group，此时晶圆内部不存在全互连（all-to-all interconnection）。如果$a>1$，由于布线距离的限制，逻辑上的全互连在物理上通过晶圆外（off-wafer）实现，这一部分将在\S \ref{chap08:sec:on-wafer-long-distance}进一步讨论。  W-group 等效于传统 Dragonfly 拓扑中由 $ab$ 个交换机构成的路由器组。由于晶圆级集成（wafer-scale integration）具有极高的互连密度，传统数据中心中需要十几个机柜（cabinets）才能容纳的路由器组，现在可以在单个机柜内完成部署。  
+
+整个系统由$g$ 个 W-group 组成。如图 \ref{appendix:fig:sc}(e)所示，所有W-group 之间也是全互连（fully connected），即每个 W-group 至少与其他 $g-1$ 个 W-group 直接连接。 对于每个 C-group，其最多可用于全局互连（global connection）的端口数量为：  
+\[
+h = k - ab + 1
+\]  
+其中，$ab-1$ 个端口已用于 W-group 内部互连。  因此，系统中的 W-group 总数满足：  
+\[
+g = abh + 1
+\]  
+
+通过利用分布式高带宽的晶圆上网络，我们构建了一种可扩展的无交换机的晶圆级 Dragonfly 网络。我们对关键问题（包括可扩展性、吞吐量、直径、延迟、能耗和成本）进行了定量分析和讨论，并提出了一种简单的最短/非最短路由算法及减少虚拟信道数量的方法。此外，我们基于该架构进行了广泛的评估，包括物理布局分析和在不同工作负载下的时钟级精度仿真。本章节的主要贡献如下：
+
+\begin{itemize}
+\item 我们提出了一种无交换机的方法来构建 Dragonfly 拓扑结构。通过去除昂贵的高阶交换机，该方法在提高注入带宽和本地性能的同时，仍能保持全局性能。
+\item 基于晶圆的互连架构是一个全新的研究方向。我们将现有的晶圆级 2D-mesh 互连拓展为大规模的高阶晶圆网络，从而实现了远超现有任何晶圆网络的可扩展性。
+\item 我们提出了一种简单的最短/非最短（minimal/non-minimal）基准路由算法，并引入了新的标记和互连方法来减少所需的虚拟通道的数量。在无交换机 Dragonfly 中，相较于传统 Dragonfly，仅需额外增加一个虚拟信道即可实现无死锁路由。
+\item 该方法可以推广应用于其他基于交换机的直接拓扑结构，包括但不限于 Slim Fly\cite{Besta_SlimFlyCost_2014}、PolarFly\cite{Lakhotia_PolarFlyCostEffectiveFlexible_2022} 和 HyperX~\cite{Ahn_HyperXTopologyRouting_2009}。
+\end{itemize}
+
+
+\section{RailX：用于大规模AI训练的灵活、可扩展且低成本的网络架构}
+近年来，AI 计算负载规模不断增长，其增长速度远超硬件的发展速度~\cite{Kaplan_ScalingLawsNeural_2020,Gherghescu_IveGot99_2024,Gherghescu_LookTrainingLarge_2024,Dubey_Llama3Herd_2024, OpenAI_GPT4TechnicalReport_2024}。为了支持超大规模（hyper-scale）的大语言模型（LLM） 训练任务，需要超大规模基础设施~\cite{Duan_EfficientTrainingLarge_2024, Dubey_Llama3Herd_2024, Qian_AlibabaHPNData_2024,Zu_ResiliencyScaleManaging_2024,Jiang_MegaScaleScalingLarge_2024}；然而，传统网络架构既不够可扩展，也不够经济高效。
+
+Fat-tree 拓扑广泛应用于现有数据中心，但其带宽成本极高，尤其是在超大规模环境下~\cite{Hoefler_HammingMeshNetworkTopology_2022,Barroso_DatacenterComputerDesigning_2019,Gherghescu_IveGot99_2024,Gherghescu_LookTrainingLarge_2024}。轨道优化（rail-optimized） 网络拓扑~\cite{Patronas_OpticalSwitchingData_2025, Qian_AlibabaHPNData_2024,Wang_RailonlyLowCostHighPerformance_2024,Liu_HostmeshMonitorDiagnose_2024,NVIDIA_NVIDIADGXSuperPOD_2023} 结合高带宽的 Scale-up 网络（如 NVLink 网络~\cite{Ishii_NvlinkNetworkSwitchNvidias_2022,Tirumala_NVIDIABlackwellPlatform_2024}），可以减少主干（spine）/核心（core）交换机的数量，同时保持高性能~\cite{NVIDIA_DoublingAll2allPerformance_2022}。然而，该方法仍受限于高阶数据包交换机（high-radix packet switch）和Scale-up 网络的带宽及可扩展性，而进一步扩展这两者的成本极高。此外，多级交换（multi-stage switching）还会引入显著的能耗和延迟开销~\cite{Greenberg_CostCloudResearch_2008,Popoola_EnergyConsumptionSwitchcentric_2018,VictorAvelar_AIDisruptionChallenges_2023,Katebzadeh_EvaluationInfiniBandSwitch_2020}，可能会成为系统扩展的瓶颈。
+
+直连网络尽管不需要高阶交换机，但仍然面临可扩展性挑战。环形（Torus）拓扑 能很好地适应传统 AI 计算负载的流量模式~\cite{Jouppi_TPUV4Optically_2023,Google_TPUV4Document_}，其中包括数据并行、张量并行、流水线并行~\cite{Shoeybi_MegatronLMTrainingMultiBillion_2020,Narayanan_EfficientLargescaleLanguage_2021,Jiang_MegaScaleScalingLarge_2024,Huang_GpipeEfficientTraining_2019}。然而，随着参数和计算规模的增长，越来越多的并行策略 被采用并组合，包括：序列并行~\cite{Korthikanti_ReducingActivationRecomputation_2022}，
+专家并行（用于专家混合模型（Mixture-of-Experts，MOE））~\cite{Rajbhandari_DeepSpeedMoE_2022,Lepikhin_GShardScalingGiant_2020,Fedus_SwitchTransformersScaling_2022,Riquelme_ScalingVisionSparse_2021,Jiang_MixtralExperts_2024,DeepSeek-AI_DeepSeekV2StrongEconomical_2024,DeepSeek-AI_DeepSeekV3TechnicalReport_2024,Dai_DeepSeekMoEUltimateExpert_2024,DeepSeek-AI_DeepSeekR1IncentivizingReasoning_2025}，
+上下文并行（用于长序列处理）~\cite{Jacobs_DeepSpeedUlyssesSystem_2023,Liu_RingAttentionBlockwise_2023,NVIDIA_ContextParallelismOverview_}。
+这些新策略的引入使得 Torus 拓扑的映射复杂度 大幅增加。并且，规则/扭曲Torus网络的直径较大，对分带宽不足，难以支持 MOE 和推荐模型的全互连（all-to-all）流量~\cite{Camara_TwistedTorusTopologies_2010,Gangidi_RDMAEthernetDistributed_2024,Naumov_DeepLearningRecommendation_2019}。此外，直连网络面临灵活性和可靠性挑战。如 图 \ref{chap09:fig:overview}(b) 所示，Google TPUv4 集群引入光路交换以重新配置互连网络\cite{Zu_ResiliencyScaleManaging_2024}。然而，集中式光交换层 受到光交换机端口数量的限制，从而限制了网络的可扩展性（例如，使用 128 端口光交换机时，最多只能连接 64 个计算节点（cubes）\cite{Liu_LightwaveFabricsAtScale_2023}）。
+
+\begin{figure}[tbh]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2025SIGCOMM/architecture.pdf}
+  \caption{RailX 物理架构。(a) 节点内的芯片通过高带宽、低延迟的直连链路（如 UCIe 和 UALink）构建 2D-mesh 拓扑。节点边缘的短距离（short-reach）接口转换为长距离（long-reach）光端口，用于节点间互连（inter-node interconnection）。(b) 节点按 2D 结构连接到光交换机（Optical Switches）（$\frac{R}{2} \times \frac{R}{2}$）。不同行（rows）和列（columns） 的节点分别连接至不同的 X/Y 方向光交换机组（每组包含 $r=mn$ 个 光交换机）。X/Y 端口按照相同的轨道 ID（rail-ID） 连接至相同的 X/Y 方向光交换机（X/Y switch）。 \label{appendix:fig:railx}}
+\end{figure}
+
+因此，我们提出了 \textit{RailX} 网络架构，其中 “X” 代表轨道（rail）的交叉。基本上，\textit{RailX} 是一种基于光路交换的扁平网络，由 三个物理层级 组成：芯片（chip）、节点（node）和系统（system）。
+
+如 图 \ref{appendix:fig:railx}(a) 所示，每个芯片可以是一个处理器或加速器，其原始 I/O 接口具有高密度但短距离的特性（如 UCIe~\cite{_UniversalChipletInterconnect_2024}）。节点（node）内的 $m\times m$ 颗芯片 通过这些高带宽直连链路互连，形成2D-mesh 拓扑。所有节点边缘的接口 通过 I/O 芯粒或 I/O 模块 转换为长距离光端口，用于更高层互连~\cite{Chang_DOJOSuperComputeSystem_2022,Fathololoumi_4TbOptical_2024, Mehta_AIComputeASIC_2024,Howard_FirstDirectMeshtoMesh_2023}。
+
+如果每个芯片在每条边上具有 $n$ 个端口，那么整个节点在每条边上的端口数 为 $r = mn$，并且每一行和每一列的端口对（+/-）称为一条“轨道”。虽然先进封装技术可进一步优化该架构，但它并不是必需的，只要节点内部的直连网络能提供比跨节点长距离链路（inter-node long-distance links）更高带宽且更低成本的连接（如 NVLink 和 UALink~\cite{Synopsys_UALinkIPSolution_}）。
+
+如 图 \ref{appendix:fig:railx}(b) 所示，系统中的所有节点 以 2D 组织形式 连接至高阶电路交换机。节点 $(i,j)$ 的 X 方向轨道 $a$ 和 Y 方向轨道 $b$，分别连接至X 方向 光交换机 $(j, a)$ 和 Y 方向 光交换机 $(i, b)$，其中，$a,b\in[1,r], i,j\in[1, \frac{R}{2}]$。换句话说，系统中的 $\frac{R}{2} \times \frac{R}{2}$ 个节点 按 行（row）和列（column） 连接至一个光交换机组，该组内包含 $r$ 台光交换机，并且具有相同 Rail-ID 的端口连接至同一台交换机。
+
+通过配置电路交换机，不同行/列轨道被互连成独立的环（rings）；同时，所有节点被互连成低直径（low-diameter） 拓扑，如 HyperX 和 Dragonfly。本工作的主要贡献如下：
+
+\begin{itemize}
+\item RailX充分利用了先进的封装/集成技术和光路交换，实现了超高的可扩展性和成本效益。具体而言，该架构可使用扁平（单层）128 端口电路交换层（flat single-tier 128-port circuit switching layer）互连超过 10 万颗芯片（100K chips），其典型直径（diameter）仅为 $2\sim 4$ 次跨节点跳数（inter-node hops）。此外，RailX 每单位注入/All-Reduce 带宽的网络成本 低于 Fat-Tree 的 $10\%$，每单位对分带宽/All-to-All 带宽的成本 低于 Fat-Tree 的 $50\%$。
+\item 我们提出了一种基于哈密顿圈分解（Hamiltonian Decomposition）理论~\cite{Tillson_HamiltonianDecompositionK2m_1980}的基于轨道环（Rail-Ring-based）全互连方法，通过从独立环构建全互连拓扑，同时实现高效的 All-Reduce 和 All-to-All 通信。
+\item 我们提出了一种点对点路由和层次化集体通信算法，充分利用本地高带宽、低延迟链路，在 All-Reduce 计算上，比传统 Torus 和 HammingMesh 上的环式集体通信（ring-collective algorithms） 具有更优性能。
+\item 我们引入了维度拆分（Dimension Splitting）方法，能够灵活调整拓扑维度的数量及每个维度的带宽以及规模，从而优化各种 LLM 训练任务（不同类型、形态、规模和并行策略（TP, CP, EP, DP, PP））的映射。此外，RailX还可用于机器学习作为服务（Machine Learning as a Service，MLaaS） 场景，可灵活映射和调度单个或多个训练任务，并可容错。
+\end{itemize}
+
+\section{总结}
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=0.99\linewidth]{../figures/INTRO/Overview.pdf}
+    \caption{论文概览。\label{appendix:overview}}
+  \end{figure}
+  
+本论文的主要内容如图~\ref{appendix:overview}~所示，主要贡献如下：
+
+\begin{itemize}
+  \item \textbf{芯粒精算师:} 成本节约是芯粒架构的常见优点，但以往的研究很少对多芯粒集成相较于单片SoC的成本优势进行定量分析。我们建立了一个定量成本模型，并基于三种典型的芯粒集成技术提出了一种分析多芯片系统成本的方法，以评估其在良率提升、芯片复用、封装复用及异构性等方面的成本收益。我们从多个角度重新审视多芯片系统的实际成本，并展示如何通过合理的芯粒架构降低VLSI系统的总成本。
+  
+  \item \textbf{可扩展的芯粒网络设计方法:} 目前大多数基于芯粒的片上网络（NoC）采用2D网格（2D-mesh）等平面拓扑结构，在大规模多芯片系统中缺乏灵活性且扩展性不足。为充分利用多芯片架构及先进封装，我们提出了一种互连方法，使得基于典型2D-mesh-NoC的芯粒能够灵活构建高阶（high-radix）互连网络。此外，我们提出了一种基于minus-first的无死锁自适应路由算法，与传统2D-mesh自适应路由相比，我们的方法在多种情况下均能显著提升网络性能。
+
+  \item \textbf{异构芯粒间接口:} 现有的多芯粒系统通常采用统一的芯粒（die-to-die）接口，导致灵活性受限。我们提出了异构接口（Hetero-IF）的概念，使得芯粒可以同时采用两种不同的接口（并行IF和串行IF）。Hetero-IF能够结合不同接口的优势，弥补各自的缺点，从而提高灵活性和性能。我们提出了两种典型的异构接口实现方式：Hetero-PHY和Hetero-Channel，并探讨了其具体使用方法及调度策略。此外，我们介绍了基于Hetero-IF的多芯片系统互连方法，并探讨了如何应用无死锁路由算法。通过仿真和电路验证，我们对这些系统进行了广泛评估。
+
+  \item \textbf{芯粒网络仿真器} 基于芯粒的网络与传统网络有显著不同，因此在评估时面临新的挑战。我们设计并实现了一款芯粒网络仿真器，它是一款支持高效仿真的时钟级精度数据包并行仿真器，适用于大规模芯粒（共享存储）网络。在芯粒网络仿真器中，我们采用了基于分组的仿真架构和原子级多线程机制，相较于现有的时钟级精度仿真器，仿真速度提升了$11\times \sim 14\times$。此外，我们实现了异构路由器/链路微架构，并支持多种特性，包括分层拓扑、自适应路由以及真实工作负载轨迹集成。该仿真器及其评估框架已开源供社区使用。
+
+  \item \textbf{环形高速路片上网络:} 传统的基于路由器的NoC架构在多芯片系统中存在显著局限性，因此我们设计了一种新型网络架构，以降低路由器/布线开销、隔离芯片内外流量，并解耦芯片内/芯片间的路由设计。我们提出环形高速路，该架构将高速片上环路与紧凑型路由器结合，实现低开销、高灵活性的流量传输。我们引入极坐标描述方法来表述拓扑，并探讨了相应的无死锁路由算法。作为一种独立的片上网络架构，环形高速路具有低成本、低延迟和高性能的特点。此外，它还能无缝扩展至多芯片网络，无需重新设计片上路由，无论芯片间拓扑如何变化，局部片上网络性能始终保持稳定。
+
+  \item \textbf{无交换机Dragonfly网络:} 现有的高性能计算（HPC）互连架构依赖高阶交换机，但这限制了注入/本地吞吐量，并引入额外的延迟、功耗和成本开销。我们提出了一种基于晶圆的互连架构——晶圆上的无交换机Dragonfly。该架构利用分布式高带宽的晶圆上网络，消除了传统Dragonfly拓扑中的昂贵高阶交换机，同时提升了注入/本地吞吐量并保持全局吞吐量。此外，我们提出了基于该架构的基准和改进型无死锁最短路径/非最短路径路由算法，仅需一个额外的虚拟信道即可实现。广泛的评估表明，无交换机Dragonfly在成本和性能上均优于传统的基于交换机的Dragonfly架构。类似的方法可应用于其他基于交换机的直接拓扑，从而助力未来大规模超级计算机的发展。
+
+  \item \textbf{RailX:} 传统的互连网络架构在可扩展性和成本效益方面存在不足。我们提出RailX，这是一种基于节点内直连和节点间电路交换的可重构网络架构。节点与光交换机在物理上采用二维（2D）组织方式，相较于现有的集中式电路交换网络，其可扩展性更佳。我们基于哈密顿圈分解理论提出了一种新型互连方法，以将独立的轨道环组织成全互连（all-to-all）拓扑，从而优化环形集合通信（ring-collective）和全互连通信。该架构支持超10万颗芯片互连，直径仅为$2\sim4$个跨节点跳步，并且在全归约（All-Reduce）带宽上的成本不到Fat-Tree的$10\%$，在全互连通信带宽上的成本不到Fat-Tree的$50\%$。RailX还可用于ML-as-a-Service场景，使单个或多个训练任务能够灵活映射不同形状、规模和并行策略，并支持故障规避。
+  
+\end{itemize}
+
+这些研究揭示了开发更具可扩展性的计算机体系结构的三个重要见解：
+\begin{itemize}
+    \item \textbf{硬件技术的进步带来真正的变革。} 正如摩尔定律在过去几十年推动了芯片性能的提升一样，计算机体系结构的根本性突破离不开硬件技术的进步。近年来，许多新兴硬件技术（包括2.5D/3D集成、高速有线互连、光电共封和光交换）取得了巨大进展。这些技术使得芯片能够以高带宽和低延迟进行集成和互连，有望激发新的体系结构创新。  
+
+    \item \textbf{面向特定领域的体系结构能最大化收益。} 面向特定领域的体系结构（Domain-Specific Architectures，DSA），尤其是AI加速器，在计算架构领域取得了巨大成功。同样，特定领域的计算负载也能激发互连网络的创新。现有的网络架构通常是为通用计算任务设计的，因此对于超大规模LLM训练等极端特定的工作负载而言，成本效益较低。计算负载与网络的协同设计（workload-network co-design）有望显著提升现有架构的性能。  
+
+    \item \textbf{从全局视角看待网络设计是关键。} 过去，片上网络和系统级网络通常是分别设计的，导致整体架构不是最优。要设计更具可扩展性的网络架构，我们必须将整个设计空间作为一个整体来考虑，包括片上网络、封装级网络、系统级网络、路由、流控等。突破系统层级之间的界限，能够揭示更多潜在的优化空间。  
+\end{itemize}
+整合以上所有因素，是进一步扩展计算体系结构的关键路径。
+
+
+\bibliography{ref/refs}  % 参考文献使用 BibTeX 编译

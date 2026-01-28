@@ -1,0 +1,493 @@
+% !TeX root = ../thesis.tex
+
+\chapter{Ring Road: Fixing Limitations of Chiplet Networks}
+\label{chap07:ringroad}
+Several major limitations and deficiencies of existing chiplet-scale-out network architectures are observed. Firstly, delivering through on-chiplet routers step-by-step is costly and unnecessary, especially for long-distance traffic that traverses numerous chips and hops. When a packet is delivered in a traditional router-based network, it needs to go through all router logic, including routing, allocation, arbitration, \textit{etc.}, at each hop, even if the packet is just passing through an intermediate chiplet. Routers introduce significant latency and energy overhead in a large-scale network~\cite{Kumary_46Tbits36GHzSinglecycle_2007,Hoskote_5GHzMeshInterconnect_2007,Howard_48CoreIA32Processor_2011, Farrokhbakht_UBERNoCUnifiedBuffer_2019}. However, the alternative router-less solution, also known as isolated multi-ring (IMR)~\cite{Liu_IMRHighPerformanceLowCost_2016,Alazemi_RouterlessNetworkonChip_2018,Lin_DeepReinforcementLearning_2020}, is not suitable for large-scale multi-chiplet systems due to its limited routing flexibility and huge wiring requirement. Routers are indispensable for delivering traffic in multi-chiplet networks but should be less frequently used with less overhead.
+
+\nomenclature{QoS}{Quality of Service, 服务质量}
+\nomenclature{RT}{Real-Time, 实时}
+\nomenclature{NUMA}{Non-Uniform Memory Access, 非一致内存访问}
+\nomenclature{RR}{Ring Road, 环形高速路}
+
+Secondly, the cross-chiplet traffic drags down the local (intra-chiplet) network performance. In existing scale-out systems, long-distance packets need to traverse several chips before they reach the destination. When an originally well-designed NoC is used by heavy cross-chip traffic, the local NoC performance deteriorates due to the competition for network resources~\cite{Lotfi-Kamran_NOCOutMicroarchitectingScaleOut_2012,Nychis_OnchipNetworksNetworking_2012}. Generally, only the overall network performance is considered, but in some scenarios, including Quality-of-Service (QoS), real-time (RT), and non-uniform memory access (NUMA), the latency of the local communication is essential~\cite{Rijpkema_TradeoffsDesignRouter_2003, Goossens_NetworksSiliconCombining_2002, Kasapaki_ArgoRealTimeNetworkonChip_2016,Panic_OnchipRingNetwork_2013}. A locality-aware NoC is supposed to provide consistent and predictable local performance to prevent long-tail latency.
+
+Thirdly, the routing design of inter-chiplet and intra-chiplet networks is also entangled. The on-chip network usually adopts a planar topology (\textit{e.g.} 2D-mesh), but the off-chip interconnection and topology can be high-radix and various. Most on-chip routing algorithms are based on explicit dimensionality and directionality (\textit{e.g.} XY-routing and negative-first-routing); however, the off-chip interconnections mix up different dimensions and directions, thus leading to complex deadlock conditions. Currently, the routing of on/off-chip networks must be designed as a whole, which is inflexible for variable and reconfigurable topologies~\cite{Yin_ModularRoutingDesign_2018, Hoefler_HammingMeshNetworkTopology_2022}.
+
+Based on these observations, people are motivated to design a new network architecture that can reduce router overhead, isolate the on/off-chip traffic, and decouple the inter/intra-chip routing design while maintaining flexibility and scalability. An inspiration comes from modern transportation architecture. 
+\begin{figure}
+  \centering
+  \includegraphics[width=0.5\linewidth]{../figures/2024MICRO/beijing_ring_road.png}
+  \caption{The ring roads of Beijing. \label{chap07:fig:ring-road-beijing}}
+\end{figure}
+As shown in Figure~\ref{chap07:fig:ring-road-beijing}~\cite{_RingRoadsBeijing_2023}, \textit{ring roads}, also known as \textit{beltways}, are widely used to reduce congestion in urban centers by providing alternate high-speed routes around the city for vehicles that do not need to visit the city core~\cite{Nugmanova_EffectivenessRingRoads_2019}. Necessary intersections and stations remain inside the city, but long-distance traffic is shunted to ring roads to reduce congestion. Similarly, if the long-distance traffic is directed to on-chip router-less high-speed  \textit{``ring roads''}, congestion within the chip can also be relieved while maintaining routing flexibility. However, there are still a few challenges to implementing the on-chip ring roads: \textbf{1)} A new description rather than traditional rectangular-coordinate-based 2D-mesh is required to describe the ``ring$+$router'' topology and routing; \textbf{2)} The microarchitecture, implementation, and hardware overhead need to be discussed and evaluated; \textbf{3)} Efficient deadlock-free routing algorithms and scale-out solutions for multi-chip networks are also required.
+
+In this chapter, a scalable network-on-chip architecture called \textit{Ring Road (RR)} is introduced. Low-cost isolated rings are integrated to achieve efficient traffic delivery. Routers are retained to provide flexible traffic delivery, but they are used much less frequently and with much less overhead. The polar coordinate system is used to describe the topology and routing of \textit{Ring Road}. Critical design issues, including topology, microarchitecture, routing theory, circuit implementation, performance, and energy efficiency of \textit{Ring Road} as a standalone NoC or building block of a multi-chip network are discussed and evaluated. The contribution of this chapter can be summarized as follows:
+
+% Multiple router-less rings are used to provide efficient traffic shunting. Routers are used to provide flexible on-chip and off-chip traffic directing. We use polar coordinates to describe the topology and routing, which is efficient and scaling-friendly. We also evaluate our method through cycle-accurate architecture-level simulations and circuit-level implementation. 
+
+\begin{itemize}
+  \item The deficiencies of current NoC-scale-out multi-chip interconnection architectures are analyzed, and a new NoC architecture \textit{Ring Road} that combines the advantages of routers and router-less rings is proposed. 
+  \item As a standalone NoC, \textit{Ring Road} achieves higher performance and lower latency/energy/area overhead than traditional router-based 2D-mesh. As a building block of multi-chip networks, \textit{Ring Road} isolates on/off-chip traffic and decouples inter/intra-chip routing designs.
+  \item \textit{Ring Road} is the first \textit{polar-coordinate-based} 2D topology. The corresponding deadlock-free routing algorithms are proposed, which are important extensions to existing routing theories. All edge interfaces of a chip belong to the same dimension and direction ($R$) under the polar coordinate description, which brings natural advantages for decoupling inter/intra-chip routing design.
+  \item Extensive evaluations, including circuit implementation, post-synthesis analysis, and cycle-accurate simulation, show that \textit{Ring Road} achieves better performance, lower power consumption, less area overhead, and on/off-chip traffic isolation compared with traditional router-based 2D-mesh.
+\end{itemize}
+
+\section{Motivation}
+
+\subsection{Large-Scale Multi-Chip Network}
+Cerebras presents the 2D-mesh-based \textit{Wafer Scale Engine (WSE-2)}, which consists of 84 dies (850,000 cores)~\cite{Lie_CerebrasArchitectureDeep_2022,Lauterbach_PathSuccessfulWaferScale_2021}. \textit{DOJO} scales out multiple 2D-mesh networks-on-chip into a 2D-mesh network of chips~\cite{Chang_DOJOSuperComputeSystem_2022,Talpes_DOJOMicroarchitectureTeslas_2022,Talpes_MicroarchitectureDOJOTeslas_2023, Fischer_91D17nm_2023}. The folded-torus-based \textit{Wormhole} processor can also be scaled out into a 2D-mesh network of chips~\cite{Ignjatovic_WormholeAITraining_2022}.  \textit{TPUv4} supercomputer, which consists of 512 chips, can be scaled out into a 3D-torus~\cite{Jouppi_TPUV4Optically_2023}. We also proposed a scalable methodology to scale out 2D-mesh network-on-chip into hypercube or nD-mesh (Chapter~\ref{chap04-scalable}). These designs are proposed to figure out the scalability challenge; however, there are also drawbacks of NoC-scale-out network architectures.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024MICRO/multi-chip.pdf}
+  \caption{Traffic on multi-chip network. (a) NoCs are interconnected into a large-scale multi-chip network; (b) Cross-chip traffic goes across NoCs and competes for resources with on-chip traffic. \label{chap07:fig:multi-chip}}
+\end{figure}
+
+% x- in: (11)/256 
+% x+ in: (7+7)/256
+% y- in: (4*2)/256
+% y+ in: (8)/256
+% in: 15/256
+% out: 15/256
+% local: 1/256
+
+As shown in Figure~\ref{chap07:fig:multi-chip}(a), multiple NoCs are interconnected into a large-scale network. For local on-chip traffic, the NoC is usually sufficient. However, in a large-scale multi-chip network, there is much cross-chip traffic that passes by the NoCs of intermediate chips. Take a $4\times 4$ 2D-mesh of chips with numerous on-chip routers for example, under the uniform communication pattern, only $6.3\%$ (1/16) traffic is within the chip. Consider a chip in the middle, if XY-routing is adopted, the cross-chip traffic source from or destination to the chip is $30 \times$ as much as the local traffic, and other passing-by traffic is $41 \times$ as much as the local traffic. As shown in Figure~\ref{chap07:fig:multi-chip}(b), cross-chip traffic competes for network resources, including links, buffers and switches, with on-chip traffic. As a result, not only the overall network performance degrades, but also the local performance deteriorates. In some scenarios, including non-uniform memory access (NUMA), Quality-of-Service (QoS), and Real-Time (RT), the latency of the local communication is supposed to be consistent and predictable~\cite{Rijpkema_TradeoffsDesignRouter_2003, Goossens_NetworksSiliconCombining_2002, Kasapaki_ArgoRealTimeNetworkonChip_2016,Panic_OnchipRingNetwork_2013}. However, existing NoC-scale-out network architectures cannot meet the requirement because they cannot isolate cross-chip and on-chip traffic.
+
+It can be observed that cross-chip traffic arrives at the I/O interfaces of the intermediate chip and leaves also from the interfaces. All these I/O interfaces are physically at the edge of the chip, thus the passing-by traffic is not necessary to cross the inside of the chip. Intuitively, an additional network that connects all interface nodes can be used to isolate the cross-chip traffic. However, the additional network can introduce significant overhead and lead to potential deadlocks. Therefore, we are motivated to use a more affordable and efficient method to add dedicated physical channels. In this chapter, multiple router-less rings connecting all the interface nodes are adopted to isolate the cross-chip traffic; however, it is still challenging to integrate with the original on-chip network and avoid deadlocks.
+
+% the rings of the router-less network are predefined based on deterministic scales; however, the scale of multi-chip systems is usually variable, and even the connections are not fixed. As a result, it is hard to determine the multiple rings of the router-less network. Second, the number of rings and the design space complexity increases rapidly with network scale. An 8x8 NoC with 50 loops chosen from 784 possible rectangular loops has $10^{79}$ designs, which can only be addressed by reinforcement learning. However, a modern multi-chip network can have thousands of nodes, which is almost impossible to give a feasible scheme. Last, silicon chips have a limited number of I/O pins; therefore, it is impossible to lead as many isolated rings out of the chip as on the chip (up to 16 overlapped loops between two neighboring nodes).
+
+\subsection{Routing in Multi-Chip Networks}
+% In recent years, many works have indicated that using identical chips to build multiple different systems has huge advantages. Feng \textit{et al.} show that significant design costs can be saved by reusing chiplets within a single system and between multiple systems. Google's TPUv4 supercomputer adopts optical circuit switches to provide flexible topology reconfiguration, which improves all-to-all throughput by 1.63x over the regular 3D-torus. Many other proposals also point out that network reconfiguration is necessary to cope with dynamic traffic. However, traditional routing algorithms are globally defined based on deterministic topology thus inflexible for multi-chip systems.
+
+A major difference between emerging NoC-scale-out multi-chip networks from traditional inter-chip networks is that multiple channels are connected among NoCs. As a result, the deadlock condition is more complex~\cite{Yin_ModularRoutingDesign_2018}, and the on-chip network and off-chip network must be designed jointly rather than separately. Recently, many studies have made progress in multi-chip routing design. Virtual channels (VCs) can be used to avoid deadlocks in multi-chip networks~\cite{Dally_DeadlockFreeMessageRouting_1987,Duato_GeneralTheoryDeadlockfree_2001,Hoefler_HammingMeshNetworkTopology_2022}, but the number of VCs required may be large. Yin \textit{et al.} present a turn-restriction-based algorithm for modular routing~\cite{Yin_ModularRoutingDesign_2018}. Majumder \textit{et al.} present \textit{Remote Control (RC)}, which uses large buffers to store all outbound packets and achieves deadlock-free~\cite{Majumder_RemoteControlSimple_2021}. There are also many deadlock recovery techniques to detect and recover deadlock by special hardware~\cite{Wu_UpwardPacketPopup_2022,Farrokhbakht_PitstopEnablingVirtual_2021}. All of these approaches are still less convenient than the traditional switch-based multi-chip network design, where we only focus on the routing between the interface/adapters and switches regardless of on-chip networks. Therefore, a better approach should be able to decouple on-chip and off-chip routing designs. More specifically, the on-chip network and routing algorithm are supposed to remain the same no matter what inter-chip topology is adopted, and the off-chip topology and routing are designed separately without considering on-chip networks.
+
+The notation of the network has a significant impact on routing design. XY-routing for on-chip 2D-mesh is originally deadlock-free. However, as shown in Figure~\ref{chap07:fig:deadlock}(a), the $X$-circular, $Y$-circular, and $Y\rightarrow X$ dependencies can form through other chips thus causing deadlocks. Any packet entering the chip along any direction is not guaranteed to reach its destination because its channel dependency chain may propagate off-chip. As shown in Figure~\ref{chap07:fig:deadlock}(b), if only one direction of the 2D-mesh is used for connecting chips, then as long as a packet enters the chip, it is guaranteed to reach its destination because the channel dependency chain cannot propagate off-chip. However, disabling 3/4 of external interfaces significantly impacts connectivity and performance. Inspired by the above observations, the polar-coordinate-based topology has natural advantages. As shown in Figure~\ref{chap07:fig:deadlock}(c), all external channels belong to one direction of $R$ dimension, and radial channel dependency chains can always terminate inside the chip at the origin.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.7\linewidth]{../figures/2024MICRO/deadlock.pdf}
+  \caption{The cross-chip deadlock is caused by off-chip channel dependencies. (a) Off-chip channel dependencies that violate on-chip network rules, leading to deadlocks; (b) Blocking these channels can avoid deadlocks but sacrifice connectivity and performance; (c) In the polar system, all external channels belong to one direction of one dimension ($R$). \label{chap07:fig:deadlock}}
+\end{figure}
+
+\section{Ring Road Architecture}
+
+\subsection{Overview}
+The basic idea of the \textit{Ring Road} architecture is to replace some traditional router-to-router channels with several isolated rings. Routers are retained to provide flexible traffic delivery but the usage frequency and overhead are significantly reduced. As shown in Figure~\ref{chap07:fig:architecture}(a), three bidirectional router-less rings are placed on a $6\times 6$ 2D-mesh, and the original router-to-router channels overlapped with the ring are removed. Several diagonal channels are added to ensure that each node has a radial channel to the adjacent rings. As shown in Figure~\ref{chap07:fig:architecture}(b), the router decides whether a packet is delivered along the radial channels to other rings or injected into the local rings. Once a packet enters a ring, it is exempt from complex router logic and is delivered along the ring until exits the ring. In such a network, any packet can be delivered to the same ring as the destination by at most two router-based radial hops, which is much less than the diameter (10 hops) of the original router-based 2D-mesh. Each ring of the \textit{Ring Road} can have multiple isolated channels. On the one hand, it has been widely presented that there are abundant underutilized wiring resources (metal layers)~\cite{Liu_IMRHighPerformanceLowCost_2016, Alazemi_RouterlessNetworkonChip_2018}. On the other hand, adding isolated router-less rings is much more affordable than increasing the physical channels between traditional routers. These isolated ring channels are the key to isolating on/off-chip traffic and decoupling inter/intra-chip routing design.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024MICRO/architecture.pdf}
+  \caption{Overview of the \textit{Ring Road} architecture. (a) A router-based $\bf 6\times 6$ 2D-mesh is modified into the \textit{Ring Road} architecture with three rings; (b) Interface and components of the router and the router-less ring. \label{chap07:fig:architecture}}
+\end{figure}
+
+\subsection{Topology Description}
+The polar coordinate is used to describe the \textit{Ring Road} architecture since it naturally fits the topology and facilitates routing. As shown in Figure.~\ref{chap07:fig:topologies}(a), in the polar coordinate system, each point on the 2D plane is determined by the distance $R$ from the pole (origin) and an angle $\theta$ from the polar axis. In the \textit{Ring Road} network, all router-to-router channels are $R$ channels and router-less rings are $\theta$ channels: clockwise is $\theta-$ direction and anticlockwise is $\theta+$ direction; outward is $R+$ direction and inward is $R-$ direction. A small variant from the rigorous polar system is that the radial channels are not necessarily parallel; specifically, radial channels can be several isolated trees. The formalized description of the \textit{Ring Road} topology is given in Definition~\ref{def:ring-road-topology}.
+
+\begin{definition}
+  \label{def:ring-road-topology}
+  In the \textit{Ring Road} topology, all routers are connected by several isolated trees whose leaf nodes are at the same depth $h$, which is also the height of the trees and the radius of the \textit{Ring Road}. Then, all the nodes ($j=1\;...\;N_i$) of depth $i$ are connected by several overlapping isolated router-less rings and labeled by coordinate $(R, \theta)=(i, j)$.
+\end{definition}
+
+The isolated-tree-based radial topology guarantees that there are no cycles among radial channels and that any node has a radial path to the outermost or innermost ring. These two properties bring convenience for routing design, which will be further discussed in Section~\ref{chap07:sec:routing-theory}. Besides, the isolated radial trees can also bring flexibility to heterogeneous topology and placement. Since the radial channels are not parallel, the topology is not a rigorous ``2D-mesh''.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024MICRO/topologies.pdf}
+  \caption{Polar-coordinate-based multi-ring topologies: all nodes are connected via tree-based radial links and router-less rings. (a) Polar coordinate system; (b) Radially unbranched topology that strictly follows the polar coordinate system; (c) Topology with ternary-tree-based radial links, which allows more peripheral nodes compared with (b).   \label{chap07:fig:topologies}}
+\end{figure}
+
+
+Rectangular-based 2D-mesh is suitable for symmetric multiprocessing (SMP) systems due to its regular layout~\cite{Bell_TILE64Processor64Core_2008,Pal_Designing2048Chiplet14336Core_2021}. The \textit{Ring Road} topology can be compatible with the traditional 2D-mesh layout. As shown in Figure~\ref{chap07:fig:architecture}(a), a $6 \times 6$ 2D-mesh can be converted into a 3-ring network by adding several radial links connecting diagonal nodes. The radial links are four separated non-regular trees: triple-branched at the corner and unbranched at the edge.
+% The maximum radix of the router is 4 (not including the inject/eject port), which is not larger than the traditional 2D-mesh. The router of the tree is actually less complex since it only has two directions (Up/down). 
+If the scale is an odd number, the innermost ring of the topology becomes a single node. However, since such an origin node is high-radix, it is significantly different from other nodes. In this chapter, the origin node is removed in all \textit{Ring Road} networks. 
+
+A non-2D-mesh-placed topology is also feasible because the number of branches of the radial trees can be adjusted according to the scale and layout of the network. Figure~\ref{chap07:fig:topologies}(b) shows an unbranched ring-road-based network that strictly follows the polar coordinate system (radial channels are parallel), and Figure~\ref{chap07:fig:topologies}(c) shows a triple-branched network that connects more peripheral nodes by branches. The \textit{Ring Road} topology is quite flexible, but due to the nature of the tree, the number of nodes on the outer ring is no less than the number of nodes on the inner ring. Therefore, on the one hand, the inner rings naturally have less congestion; on the other hand, the outer rings require more physical channels to achieve a balanced throughput.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.6\linewidth]{../figures/2024MICRO/placement.pdf}
+  \caption{ \textit{Ring Road} placements that allow symmetric shape and uniform-length wiring. (a) Diamond placement; (b) HexaMesh placement.  \label{chap07:fig:placement}}
+\end{figure}
+
+A potential problem for topologies shown in Figure~\ref{chap07:fig:topologies} is that the radial and ring links/wires may have varying physical lengths. With novel placements and non-Manhattan routing technologies~\cite{Chen_SurveySwarmIntelligence_2020,Liu_XarchitectureSteinerMinimal_2021,Teig_MethodApparatusDiagonal_2006}, \textit{Ring Road} can simultaneously achieve symmetric placement (same shape/area for each node) and uniform-length wiring. As shown in Figure~\ref{chap07:fig:placement}(a), the diamond placement can ensure that the radial wires and the ring wires have the same length under Manhattan routing. With Octagonal Steiner Tree (OST) routing~\cite{QiZhu_SpanningGraphbasedNonrectilinear_2005}, all the radial wires ($45^{\circ}/135^{\circ}$) can be shorter but remain the same length. As shown in Figure~\ref{chap07:fig:placement}(b), with Hexagonal Steiner Tree (HST) routing~\cite{Samanta_HeuristicMethodConstructing_2006}, the HexaMesh placement~\cite{Iff_HexaMeshScalingHundreds_2023} can ensure that all wires ($0^{\circ}/60^{\circ}/120^{\circ}$) have the same physical length.
+
+\begin{figure}[b]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024MICRO/multi-chip-network.pdf}
+  \caption{Inter-chip topologies. (a) 2D-mesh; (b) Hypercube; (c) Fat-tree. Each cycle refers to the outermost ring(s) of the Ring Road NoC. \label{chap07:fig:multi-chip-network}}
+\end{figure}
+
+\textit{Ring Road} can be scaled out to build multi-chip networks. We assume that all the chip-to-chip interfaces are at the edge of the chip (outermost ring), which is a reasonable assumption that almost all existing scalable chips follow. As shown in Figure~\ref{chap07:fig:multi-chip-network}(a)(b), direct topologies can be formed by connecting only the interfaces and the outermost router-less rings.  As shown in Figure~\ref{chap07:fig:multi-chip-network}(c), multiple ring-road-based chips can also be connected by a switch-based network, similar to the HammingMesh~\cite{Hoefler_HammingMeshNetworkTopology_2022}. These ring-based multi-chip networks have been introduced and discussed in the literature~\cite{Wang_ApplicationDefinedOnchip_2022, Fallin_HighPerformanceHierarchicalRing_2011, Panic_OnchipRingNetwork_2013}. In this chapter, we mainly focus on the new contents: the isolation of on/off-chip traffic and the decoupling of inter/intra-chip routing design. 
+% Specifically, in Section~\ref{chap07:sec:routing-theory}, we clarify that cross-chip packets do not cause deadlocks in the on-chip network, regardless of the inter-chip topology. In section~\ref{chap07:sec:traffic-isolation}, we show that the on-chip network performance remains consistent not matter how heavy the cross-chip traffic is.
+
+\subsection{Analysis \& Discussion}
+
+\subsubsection{Isolation of on/off-chip traffic} 
+As shown in Figure~\ref{chap07:fig:overlapping-ring}(a), each ring can have multiple isolated channels. Different from the router-less networks that use numerous rings for connectivity, the \textit{Ring Road} retains routers; therefore, surplus channels are used to isolate and balance traffic. In Section~\ref{chap07:sec:post-synthesis}, we will further show that adding router-less rings is much more affordable than adding an extra router-based sub-network. In a NoC-scale-out multi-chip network, many packets pass through intermediate chips and affect local performance. Since I/O interfaces are at the edge of the chip, passing-by traffic is not necessary to enter the inside of the chip. Therefore, isolation can be achieved through the isolated ring channels connecting all interface nodes at the chip edge (outermost ring).  As a standalone NoC, these channels are used to balance the traffic load on the ring. When scaled out to multi-chip networks, some outermost ring channels are exclusively used for cross-chip traffic. As shown in Figure~\ref{chap07:fig:overlapping-ring}(b), when a cross-chip packet arrives at an intermediate chip, the router sends it into one of these exclusive rings; then, the packet moves forward along the ring without router logic until reaching the leaving interface node, from which the packet goes to another chip. The cross-chip packets do not occupy any radial channel or on-chip ring channel; therefore, no matter how the inter-chip topology is and how congested the cross-chip traffic is, the local NoC performance is not affected. At the source and destination chips, the cross-chip packets are treated as local packets and are delivered along the on-chip channels. 
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024MICRO/overlapping-ring.pdf}
+  \caption{Isolated overlapping rings. (a) Each ring has multiple physical channels; (b) Interface and components of the edge router (bridge) and the isolated multi-ring. \label{chap07:fig:overlapping-ring}}
+\end{figure}
+
+\subsubsection{Bisection bandwidth \& diameter} Compared with the traditional $n\times n$ 2D-mesh, if there is only one two-way channel at each ring, the \textit{Ring Road} shown in Figure~\ref{chap07:fig:architecture}(a) has the same bisection bandwidth ($2\times n$ flits/cycle). Adding more overlapping rings can achieve higher bisection bandwidth with low overhead. The comparison of diameter is shown in Table~\ref{tab:diameter},
+\begin{table}[ht]
+  \centering
+  \caption{Diameter comparison of $n\times n$ 2D-mesh. \label{tab:diameter}}
+  \begin{tabular}{cccc}
+    \toprule
+    \textbf{Diameter}     & \textbf{Hop Count}                                     & \textbf{Cycles ($D_R=4$)} & \textbf{Cycles ($D_R=2$)}\\ 
+    \midrule
+    \textbf{Router-based} & $2(n-1) \text{H}_\text{R}$                             & $8n-8$                                                                                 & $4n-4$                                                                                 \\ 
+    \textbf{Ring Road}    & $(n/2-1) \text{H}_\text{R} + 2(n-1) \text{H}_\text{r}$ & $4n-6$                                                                                 & $3n-4$                                                                                 \\ 
+    \textbf{Router-Less}  & $2(n-1) \text{H}_\text{r}$                             & $2n-1$                                                                                 & $2n-1$                                                                                 \\ 
+    \bottomrule
+  \end{tabular}
+\end{table}
+where $H_R$ is a router-to-router hop and $H_r$ is a router-less on-ring hop. If dimension-order-routing (DOR, $R\theta$-routing) is adopted (which is detailed discussed in Section~\ref{chap07:sec:routing-theory}), only $n/2-1$ router-to-router hops are required to deliver a packet from the outermost ring to the innermost ring, which is less than a quarter of the traditional 2D-mesh. The diameter at the outermost ring is the same as the diagonal in the traditional 2D-mesh but with lower latency/energy overheads. Under the most ideal assumption that all router logic besides link traverse can be finished within one cycle (the total delay of $H_R$ is 2 cycles), the \textit{Ring Road} still has a diameter with lower total latency. The router-less network has the lowest-latency diameter by completely removing routers; however, the connectivity is achieved by numerous overlapping channels~\cite{Alazemi_RouterlessNetworkonChip_2018,Lin_DeepReinforcementLearning_2020}. In comparison, \textit{Ring Road} achieves a balance between the router-based and the router-less networks. 
+For none-2D-mesh-placed \textit{Ring Road}, when the radius/depth is large while the scale of each ring is small, the radial channels can become the narrowest bottleneck for bisection. In this case, packets go through more router-to-router hops than router-less ring hops, which contradicts the original purpose of the \textit{Ring Road}. For example, a 6-ring$\times$6-node network has a diameter of $5H_R+3H_r=13$ and a bisection bandwidth of $12$ flits/cycle while a 4-ring$\times$9-node network has a diameter of $3H_R+4H_r=10$ and a bisection bandwidth of $16$ flits/cycle. Therefore, the scale of the radial dimension is typically smaller than the scale of the largest ring dimension.
+
+\subsubsection{Number of overlapping ring channels} \label{chap07:sec:overlapping-ring}
+Each ring has limited scalability; therefore, multiple channels (one channel consists of two rings with opposite directions) are required to achieve good performance. The outermost ring has the largest scale and is used by both on-chip traffic and cross-chip traffic; thus, it is the most congested. Suppose a \textit{Ring Road} consists of $n$ $m$-ary $h$-height radial trees, then there is $N=\frac{n(m^h-1)}{m-1}$ nodes in total and $N_{h-1} = nm^{h-1}$ nodes at the outermost ring. Cross-chip and on-chip traffic on the outermost ring are calculated respectively. The traffic $T_C$ at the bisection from one half to the other half under the uniform (random) traffic can be estimated by
+\begin{equation}
+  \label{aaa}
+  \begin{aligned}
+    T_{C-\text{on}} = N \times \frac{N_{h-1}}{2N}   & = \frac{1}{2}nm^{h-1}  \\
+    T_{C-\text{cross}} = N_{h-1} \times \frac{1}{2} & = \frac{1}{2}nm^{h-1}.
+  \end{aligned}
+\end{equation}
+Therefore, to achieve the theoretical maximum performance ($4\times O_R = T_{C-\text{on}}+T_{C-\text{cross}}$), the required number of overlapping channels $O_R$ is at least $\frac{1}{4}nm^{h-1}$. For a typical 64-node network ($n=8$, $m=1$, $h=8$), only two ring channels (one for on-chip and the other one for off-chip) are required, which is much less than the router-less network. For a shorter-radius network ($n=4$, $m=2$, $h=4$, $N=60$), the required number of overlapping channels is 8, which is relatively high but still affordable compared with the router-less network.
+
+\subsubsection{Design complexity \& overhead}  The router-less ring is integrated with typical virtual-channel-based routers. The register-insertion rings themselves have been well illustrated before and have been evaluated as very high-speed and low-cost~\cite{Liu_IMRHighPerformanceLowCost_2016, Alazemi_RouterlessNetworkonChip_2018}. The integration doesn't introduce additional overhead on the router but instead reduces the complexity. If $R\theta$-routing is adopted, packets leaving the rings must have reached the destination and can eject directly, which means there is no additional logic and virtual channel at the router's input ports receiving from the rings. That is to say, all the routing logic is only at the radial and injection channels, and no crossbar is required from the ring to other rings or $R$ channels. Adding more overlapping rings can be implemented just like adding output virtual channels or outside the router by demultiplexer (DeMUX). More detail about circuit implementation is shown in Section~\ref{chap07:sec:implementation}. As a 2D planar topology, the \textit{Ring Road} is also as layout-friendly as the traditional 2D-mesh. The overlapping rings consume more wiring resources but are far less than the IMR-based router-less network, whose number of overlapping is at least $n$ and preferably $2\times (n-1)$ for an $n\times n$ 2D-mesh~\cite{Alazemi_RouterlessNetworkonChip_2018,Lin_DeepReinforcementLearning_2020}.
+
+%  Compared with IMR-based router-less networks, wiring complexity is reduced and routing flexibility is improved while only a very few router-to-router hops are required.
+
+% If considering the diagonal maximum latency, more peripheral nodes can be supported by the \textit{Ring Road} due to the lower latency of the router-less hop.
+
+% \newpage
+% \textbf{Microarchitecture:} The microarchitecture of register-insertion rings and the input/output modules have been well illustrate before. In this chapter, these modules are integrated with typical virtual-channel-based routers. The input/output queue of the router is equivalent to the ejection/injection queue of the router-less network. Such a microarchitecture is convenient for adding rings (physical channels) with affordable overhead. For the router in the \textit{Ring Road} with $n$ overlapped isolated two-way rings, only $3\times(3+2n)$ crossbar is required (linear rather than quadratic growth) because there is not allowed (necessary) for ring-to-ring forwarding. Adding a ring only requires a few extra wires/buffers and does not significantly increase the router complexity.
+
+% The advantages of the architecture can be revealed through simple analysis. Take the $5\times 5$ 2D-mesh in Figure~\ref{chap07:fig:architecture}(a) as an example, except for the central node, all nodes are on one of the two rings. Therefore, after at most one router-based transmitting, the packet can be sent to the same ring as the destination. After that, the packet just needs to follow the ring to reach its destination. Compared with the traditional router-based network, the ring-road-based network significantly reduces the number of routers thus reducing latency and energy. Compared with the router-less network, the ring-road-based network significantly reduces the number of rings, reduces wiring difficulties, and improves flexibility.
+
+% As shown in Figure~\ref{chap07:fig:architecture}(b), the ring roads can have multiple lanes. In addition to the extra full ring roads, a bidirectional ring can be regarded as two isolated unidirectional rings. These rings are overlapped, and the router decides which ring packets enter.
+
+% It is evident that for the $6\times 6$ 2D-mesh shown in Figure~\ref{chap07:fig:architecture}(a), only two router-to-router hops are required to deliver a packet from the outermost ring to the innermost ring.
+
+
+
+
+% \subsection{Isolation of On-Chip and Off-Chip Traffic}
+
+
+
+
+
+% In a large-scale multi-chip interconnected system, many packets pass through intermediate chips and affect local performance. Actually, since I/O interfaces are usually at the edge of the chip, passing traffic is not necessary to enter the inside of the chip. Isolation of the on-chip and off-chip traffic can be realized by using multiple isolated ring roads at the outermost.
+
+% As shown in Figure~\ref{chap07:fig:multi-ring}(b), all external routers can be connected with extra rings.  As shown in Figure~\ref{chap07:fig:multi-ring}(a), all passing traffic is routed only once at entry routers and does not take up any on-chip network resources. In this way, interference of cross-chip traffic with local communication is greatly reduced, and the routing overhead of long-distance transmission is also reduced. No matter how large the multi-chip system is and how congested the cross-chip traffic is, the performance of local on-chip communication is consistent.
+
+
+
+% Different from the IMR, lanes are not used for connectivity but used for reducing conflict and congestion, therefore, buffers are separate other than pooled. To maintain network performance, the number of cross-chip rings is supposed to be proportional to the scale and the chip-to-chip interface bandwidth.
+
+\section{Routing Theory of Ring Road}
+\label{chap07:sec:routing-theory}
+Routing design is one of the core issues of interconnection networks. In this section, routing in the \textit{Ring Road} is introduced as an important extension to existing theory. On the one hand, the isolated ring was previously used in router-less networks; this chapter applies it to networks with routers. On the other hand, traditional 2D-mesh is rectangular-coordinate-based; this chapter presents routing algorithms/theories on polar-coordinate-based 2D topologies.
+
+\subsection{Ring Road as Standalone NoC}
+First, we illustrate the routing algorithms of the \textit{Ring Road} as a standalone NoC. The \textit{ring road} topology is based on the 2D polar coordinate system; however, the two dimensions are fundamentally different. Only the radial channels are traditional router-to-router channels, and the ring channels are router-less register-insertion-rings. Though the radial channels are not parallel (isolated trees), they are acyclic and have clear directions: towards-root is $R-$ and towards-leaf is $R+$; therefore, the radial tree is flexible while retaining 2D property. To facilitate the description, we introduce two new concepts as shown in Definition~\ref{def:ring-road}.
+
+\begin{definition}
+  \label{def:ring-road}
+  An \textbf{Ejection Ring} is a ring road that satisfies: 1) The destination of any packet entering the ring is on the ring; 2) Any packet exiting the ring must be ejected and cannot be routed again. Otherwise, the ring road is a \textbf{Transfer Ring}.
+\end{definition}
+The ejection ring is similar to the ring in the router-less network, which has been proven to be deadlock-free with injection flow control~\cite{Liu_IMRHighPerformanceLowCost_2016}. The original condition that \textit{the source must be co-located on a ring with the destination} can be relaxed if we only focus on the ring itself. As long as no more dependencies after entering the \textit{ejection ring}, packets can always reach the destination. Thus, Lemma~\ref{lemma:ejection-ring} is obtained.
+
+\begin{lemma}
+  \label{lemma:ejection-ring}
+  The ejection ring is deadlock-free.
+\end{lemma}
+
+The \textit{ejection ring} is similar to the Y-column in traditional XY-routing-based-2D-mesh: the destination of any packet entered the Y-column is on the same Y-column. Naturally, the polar-coordinate-based dimension-order-routing (DOR) algorithm is presented in Algorithm~\ref{alg:polar-DOR}. A packet is first routed along the radial channels to the same ring as the destination, and then it is injected into the direction of the ring with a minimal path. As a result, we give Theorem~\ref{theorem:1} and the corresponding Proof.
+
+\begin{figure}[htb]
+\centering
+\begin{minipage}{.6\linewidth}
+\begin{algorithm}[H]
+  \begin{algorithmic}[1]
+    \REQUIRE Current Node: $(R_c, \theta_c)$,\\ \quad Destination Node: $(R_d, \theta_d)$;
+    \ENSURE Output Channel; \\
+    \STATE $R_\text{offset} \leftarrow R_d - R_c$
+    \STATE $\theta_\text{offset} \leftarrow \theta_d - \theta_c$
+    \IF{$R_\text{offset} < 0$}
+    \RETURN $R-$
+    \ELSIF{$R_\text{offset} > 0$}
+    \RETURN $R+$
+    \ELSIF[Entering a ring]{$R_\text{offset} = 0$}
+    \IF{$0 < \theta_\text{offset} \leq \pi$ or $\theta_\text{offset} < -\pi$}
+    \RETURN $\theta + $
+    \ELSIF{$-\pi \leq \theta_\text{offset} < 0$ or $\theta_\text{offset} > \pi$}
+    \RETURN $\theta - $
+    \ELSIF[Exiting the ring]{$\theta_\text{offset} = 0$}
+    \RETURN Ejection Channel
+    \ENDIF
+    \ENDIF
+  \end{algorithmic}
+  \caption{\scshape Polar-coordinate-based DOR \label{alg:polar-DOR}}
+\end{algorithm}
+\end{minipage}
+\end{figure}
+
+\begin{theorem}
+  The dimension-order-routing Algorithm~\ref{alg:polar-DOR} for polar-coordinate-based Ring Road is deadlock-free.
+  \label{theorem:1}
+\end{theorem}
+
+\begin{proof}
+  First, according to {\scshape Definition}~\ref{def:ring-road} and {\scshape Lemma}~\ref{lemma:ejection-ring}, ring roads in Algorithm~\ref{alg:polar-DOR} are ejection rings and are deadlock-free. Second, there is also no dependency cycle in the router-based radial network (isolated trees). Last, there are no dependencies from ring channels to radial channels (dimension-order-routing). Therefore, Algorithm~\ref{alg:polar-DOR} is deadlock-free.
+\end{proof}
+
+The \textit{Proof} can also be generalized into arbitrary networks: adding isolated \textit{ejection rings} over any originally deadlock-free on-chip network is still deadlock-free. Nevertheless, the \textit{ejection ring} is not a necessary condition for deadlock-free routing in \textit{Ring Road}. A packet in the intermediate \textit{transfer ring}, where $R\neq R_d$, can still be forwarded to an $R$ channel that cannot be permanently blocked. If all packets on the ring can only have dependencies towards one radial direction (\textit{e.g.} $R+$), the dependency chain is always moving further away from the origin and thus cannot form cycles. This is very similar to the west-first-routing algorithm on traditional rectangular-coordinate-based 2D-mesh (packets at $Y$ channels can be forwarded to $X+$ but not allowed to $X-$). Limited by space, we give the {\scshape Corollary}~\ref{corollary:polar-IFR} without detailed description and proof.
+
+\begin{corollary}
+  \label{corollary:polar-IFR}
+  The inward-first-routing (IFR) algorithm for polar-coordinate-based Ring Road, \textbf{if the destination is at the inner ring ($R_\text{offset} < 0$), then a packet must be routed to the $R-$ channel; otherwise, a packet can be routed to the $R+$ channel or injected into the ring,} is deadlock-free.
+\end{corollary}
+
+In summary, \textit{Ring Road} is a new NoC architecture, but it can still follow many conclusions in existing routing theory. By using register-insertion rings and flow control, the ring itself is deadlock-free. Therefore, in most circumstances, the rings in polar-coordinate-based \textit{Ring Road} can be treated like the $Y$ channels in traditional rectangular-coordinate-based 2D-mesh. 
+
+
+
+% \begin{algorithm}[ht]
+%   \begin{algorithmic}[1]
+%     \REQUIRE Current Node: $(R_c, \theta_c, C_c)$,\\ \quad Destination Node $(R_d, \theta_d, C_d)$;
+%     \ENSURE Output Channel; \\
+%     \STATE assert($C_c \neq C_d$)
+%     \IF{$R_c \neq R_{max}$}
+%     \RETURN $R+$
+%     \ELSIF{$R_\text{offset} > 0$}
+%     \RETURN $R+$
+%     \ELSIF[Entering ring roads]{$R_\text{offset} = 0$}
+%     \IF{$0 < \theta_\text{offset} \leq \pi$ or $\theta_\text{offset} < -\pi$}
+%     \RETURN $\theta + $
+%     \ELSIF{$-\pi \leq \theta_\text{offset} < 0$ or $\theta_\text{offset} > \pi$}
+%     \RETURN $\theta - $
+%     \ELSIF[Exiting ring roads]{$\theta_\text{offset} = 0$}
+%     \RETURN Ejection Channel
+%     \ENDIF
+%     \ENDIF
+%   \end{algorithmic}
+%   \caption{\scshape Cross Chip Routing \label{alg:cross-chip}}
+% \end{algorithm}
+
+\subsection{Decoupling Inter/intra-Chip Routing Design}
+\begin{figure}[htb]
+\centering
+\begin{minipage}{.6\linewidth}
+\begin{algorithm}[H]
+  \begin{algorithmic}
+    \REQUIRE Source node: $(C_c, R_c, \theta_s)$, \\ \quad Destination node: $(C_d, R_d, \theta_d)$;
+    \ENSURE Output Channel; \\
+    \IF{$C_c = C_d$}
+    \RETURN {\scshape DOR $(R_c, \theta_s, R_d, \theta_d)$}
+    \ELSIF{$C_c \neq C_d$}
+    \IF{$R_c = R_{max}$}
+    \RETURN {\scshape Inter\_Chip\_Routing $(C_c, C_d)$}
+    \ELSIF{$R_c \neq R_{max}$}
+    \RETURN $R+$
+    \ENDIF
+    \ENDIF
+  \end{algorithmic}
+  \caption{\scshape Routing in multi-chip Ring Road \label{alg:multi-ring-road}}
+\end{algorithm}
+\end{minipage}
+\end{figure}
+
+
+\textit{Ring Road} can also be used to build scale-out multi-chip networks. Traditional routing design for such networks must consider the on-chip and off-chip routing as a whole, which is inflexible for variable and reconfigurable networks. A major reason for cross-chip deadlocks is the inter-chip interconnection mixing up different dimensions and directions of the on-chip networks. \textit{e.g.}, $X-$ and $X+$ of the 2D-mesh are connected through other chips. The polar-coordinated-based \textit{Ring Road} has a natural property that all external channels belong to one direction of one dimension ($R$), which brings natural advantages for decoupling the inter/intra-chip routing design. The routing algorithm for scale-out multi-chip \textit{Ring Road} is shown in Algorithm~\ref{alg:multi-ring-road}. Some outermost ring channels, called \textit{cross-chip rings}, are exclusively used by cross-chip traffic and \texttt{Inter\_Chip\_Routing()}. Lemma~\ref{lemma:arrived-packet} and the corresponding Proof are given. 
+
+\begin{lemma}
+  Any packet arrived at the destination chip from another chip can be delivered by Algorithm~\ref{alg:polar-DOR} (DOR) without deadlock.
+  \label{lemma:arrived-packet}
+\end{lemma}
+\begin{proof}
+  Suppose an on-chip channel is requested by an arrived packet from other chips. Since the arrived packet must be located at the outermost ring ($R=R_{max}$), the requested channel must be an $R-$ channel or an ejection ring. The $R-$ channel dependency chain can always terminate at the innermost ring, and ejection rings are deadlock-free according to Lemma~\ref{lemma:ejection-ring}. Thus, any arrived packet can be delivered without deadlock.
+\end{proof}
+
+Lemma~\ref{lemma:arrived-packet} indicates that all arriving packets at the destination chip are guaranteed to be deadlock-free no matter what the off-chip topology is. All leaving packets at the source chip have a similar property, but it is not separately described due to the page limit. Theorem~\ref{theorem:2} and the corresponding Proof are given to further clarify the decoupling of the inter/intra-chip routing design.
+
+\begin{theorem}
+  For each Ring-Road-based multi-chip network with routing Algorithm~\ref{alg:multi-ring-road}, if there is no deadlock among cross-chip rings (\textit{i.e.}, if \texttt{Inter\_Chip\_Routing(c,d)} is deadlock-free), the network is deadlock-free.
+  \label{theorem:2}
+\end{theorem}
+\begin{proof}
+  Since deadlock is caused by cyclic dependencies, we prove Theorem~\ref{theorem:2} by proving any channel dependency cycle cannot include on-chip channels in the Algorithm~\ref{alg:polar-DOR}:
+  \begin{itemize}
+    \item By Theorem~\ref{theorem:1}, channel dependency cycle cannot form among on-chip channels.
+    \item By Lemma~\ref{lemma:arrived-packet}, arriving packets in on-chip channels cannot form a channel dependency cycle.
+    \item Suppose an on-chip channel is occupied by a leaving packet towards other chips. The occupied channel must be an $R+$ channel by Algorithm~\ref{alg:multi-ring-road}, which can only be requested by injection channels or an inner $R+$ channel. The $R+$ dependency chain can always terminate at the innermost ring. Thus, leaving packets in on-chip channels cannot form a channel dependency cycle.
+  \end{itemize}
+  Therefore, as long as there is no deadlock among cross-chip channels, the network is deadlock-free.
+\end{proof}
+
+In summary, by polar-coordinate-based \textit{Ring Road} topology and dimension-order on-chip routing, the inter-chip routing design is decoupled from the intra-chip routing design. Various existing topologies and routing algorithms, including Mesh-of-Rings~\cite{Fallin_HighPerformanceHierarchicalRing_2011}, Cross-Ring~\cite{Wang_ApplicationDefinedOnchip_2022}, hypercube, and Fat-Tree/HammingMesh~\cite{Hoefler_HammingMeshNetworkTopology_2022}, can be adopted among multiple chips without considering the on-chip network and routing. On the other hand, the on-chip routing can adopt the DOR algorithm regardless of the off-chip topology. The decoupling of inter/intra-chip routing brings great convenience and flexibility, especially for scenarios where the inter-chip topology is variable and reconfigurable.
+
+% \begin{definition}
+%   The \textbf{Transfer deadlock} is the deadlock among multiple transfer rings.
+% \end{definition}
+
+% With this theorem, we successfully separate the deadlock avoidance of the cross-chip network and the on-chip network and obtain Corollary~\ref{corollary}.
+% \begin{corollary}
+%   Any ring-road-based multi-chip routing algorithm without transfer deadlock is deadlock-free.
+%   \label{corollary}
+% \end{corollary}
+
+\begin{figure}[tbh]
+  \centering
+  \includegraphics[width=0.9\linewidth]{../figures/2024MICRO/crossbar.pdf}
+  \caption{Router implementation. (a) Baseline dual-channel mesh router consists of two single-channel routers; (b) The crossbar of the DOR-based on-chip \textit{Ring Road} router. \label{chap07:fig:crossbar}}
+\end{figure}
+\section{Microarchitecture \& Implementation}
+\label{chap07:sec:implementation}
+\subsection{Router}
+\subsubsection{Baseline Single/Dual-Channel Mesh Router} The baseline router is the typical virtual-channel router~\cite{Becker_EfficientMicroarchitectureNetworkonChip_2012,EnrightJerger_OnchipNetworksSecondEdition_2018}. Originally, the router has four network ports (E/W/N/S) and two device ports. Two input buffers (virtual channels) are implemented at each input port, and the crossbar is achieved by multiple output multiplexers (MUXs). Dimension-order routing is adopted in all the designs. Besides the single-channel router, it is also important to compare the overhead of multi-ring with multi-channel routers. As shown in Figure~\ref{chap07:fig:crossbar}(a), the dual-channel mesh router is implemented by simply adding a channel selection logic over two single-channel routers. The channel is not allowed to switch once the packet is injected. Such a design avoids using a high-radix crossbar and is consistent with the IMR design. The router of \textit{Ring Road} is modified from the baseline single-channel router but with a more compact design. 
+
+\subsubsection{Crossbar} As shown in Figure~\ref{chap07:fig:crossbar}(b), the crossbar implementation of the DOR-based \textit{Ring Road} router can be very simple. Since packets will not be routed again after entering the ring, all the radial channels only accept flits from the opposite radial channel or the injection channel. As a result, if there are $n$ virtual channels at each input port, the output MUX of the radial channel is only $2n$-to-1. Similarly, there is also no data path from ring channel to ring channel. Thus, the out MUX of the ring channel is only $3n$-to-1. Outside, a small 2-to-1 MUX is required at the interface between the ring road and the router. For the outermost router that also handles cross-chip traffic, a cross-chip packet is possible to turn from the ring to a radial channel at the destination chip. In this case, an additional data path from the ring input port to the $R-$ channel is required; however, since these peripheral routers do not have $R+$ channels, the complexity is still low. For a branched router, adding more $R+$ ports can increase the crossbar overhead due to the higher radix. However, these branch ports are not as fully connected as the regular high-radix router because there is no data path among the $R+_i$ channels. The branched $R+_i$ channels only increase the complexity of partial out MUXs. Alternatively, these branched $R+_i$ channels can be organized similarly to virtual channels, which means only one $R+$ channel is allowed to be active at a time. That hurts the radial bandwidth, but can tightly control the crossbar radix. In Section~\ref{chap07:sec:post-synthesis}, it is verified that the branched \textit{Ring Road} can run no slower than the traditional mesh router.
+
+\subsubsection{Input/Routing Unit} In the traditional router, VC buffers and routing logic are required at each input port to provide output port selection and avoid head-of-line blocking. In the \textit{Ring Road} router, since the packets are directly ejected after leaving the ring, routing logic is not necessary at the ring input ports. Similarly, head-of-line blocking is no longer a problem for the ring input port, and one FIFO rather than multiple VCs is enough. As a result, the radix of the ejection MUX is reduced from $4n$-to-1 to ($2n$+$2$)-to-1. Furthermore, the input FIFO of the ring input port can even be removed or merged with the ejection FIFO. 
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024MICRO/router-less-ring.pdf}
+  \caption{Implementation of the isolated multi-ring interface. The DeMUX and the credit counter are the two major components of the interface.
+ \label{chap07:fig:router-less-rings}}
+\end{figure}
+
+\subsection{Isolated Multi-Ring} 
+The \textit{IMR} implementation has been thoroughly discussed in the literature~\cite{Liu_IMRHighPerformanceLowCost_2016, Alazemi_RouterlessNetworkonChip_2018}; therefore, we only focus on the new contents. Adding more overlapping rings is not necessary to increase the complexity of the router. If the router has output buffers (VCs), the multiple rings can be integrated with the output unit (one ring per output VC) of the original router. If the router doesn't have output VCs, as shown in Figure~\ref{chap07:fig:router-less-rings}, for $m$ overlapping rings used for on-chip traffic, a 1-to-$m$ DeMUX can be used after the ring output port, and an $m$-to-1 MUX can be used before the ring input port. In this way, all these additional MUXs are outside the router as a part of the ring road. Another approach is to eliminate congestion by separately using three rings for injection, $R-$, and $R+$ channels; as a result, the output MUX and the ring-selection DeMUX are no longer required. Though a few overlapping rings are enough to fully utilize the router bandwidth, each ring itself can be congested; therefore, more overlapping rings are still helpful in increasing performance, especially for large-scale networks. 
+
+In the \textit{Ring Road}, routers need flow-control information from the rings to determine allocation and arbitration. As shown in Figure~\ref{chap07:fig:router-less-rings}, each ring has a separate credit-based flow-control unit, and all rings will give the total credit count to the router. Based on the credits, the router decides whether a packet can be injected into the ring and which ring channel should be selected. The same as the IMR-based router-less network, if the ejection channels are fewer than the ring overlapping number, packets may be blocked at the destination ring-router interface. The ring with the fewest credits has the highest priority to eject. When all rings are going to be full, packets will have to be forwarded along the ring for one more round. According to \cite{Alazemi_RouterlessNetworkonChip_2018}, since \textit{Ring Road} does not have as many overlapping rings as the router-less network, the probability of ejection blocking is low.
+
+
+\section{Evaluation}
+\subsection{Methodology}
+\subsubsection{Circuit Implementation} The single/dual-channel mesh router and the single/dual-ring \textit{Ring Road (RR)} are implemented and evaluated through a complete digital circuit design process. We implement the diagonal node of \textit{Ring Road} as shown in Figure~\ref{chap07:fig:architecture}(a), which has the same number of router-to-router ports ($R-$, $R+_1$, $R+_2$, and $R+_3$) as the mesh router. TSMC-12nm-FinFET-Compact technology and Synopsys Design Compiler (DC) are used in the synthesis flow. 9-track standard cell library and IC Compiler (ICC) are used in the place-and-route flow. The area, power, and timing reports are generated and analyzed.
+
+\begin{table}[ht]
+  \centering
+  \caption{Default parameters.}
+  \label{chap07:tab:parameter}
+  \begin{tabular}{cc}
+    \toprule
+    \textbf{Parameter}     & \textbf{Value}               \\
+    \midrule
+    Packet Length          & 4 flits                      \\
+    Input Buffer Size      & 16 flits                     \\
+    Link Latency           & 1 cycle                      \\
+    Virtual Channel Number & 2 per link                   \\
+    Simulation Time        & 10000 cycles                 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{Simulation} CNSim is used to evaluate the \textit{Ring Road} network. Virtual cut-through (VCT) switching and credit-based flow control are used. Three pipeline stages, including routing, VC allocation, and switch allocation (transmission) are modeled, thus the latency of a router-based hop is three cycles. The ring is modeled as the ideal FIFO, thus the latency is one cycle. Other default parameters are shown in Table~\ref{chap07:tab:parameter}. The baseline networks are the 36-node small-scale and 64-node large-scale 2D-mesh with uniform link bandwidth. Two \textit{Ring Road} topologies are evaluated: \textbf{1)} the $h\times n$ polar-coordinate-based 2D \textit{Ring Road} shown in Figure~\ref{chap07:fig:topologies}(a). \textbf{2)} The rectangular-2D-mesh-placed \textit{Ring Road} shown in Figure~\ref{chap07:fig:architecture}. Different ring overlapping, especially for the outermost ring, are also evaluated.
+
+\subsubsection{Workloads} \textbf{1)} Synthetic traffic is used to evaluate the performance of the \textit{Ring Road} network. Unicast communication is conducted between the source-destination pairs. The traffic patterns include uniform random, bit-complement ($d_i=\neg s_i$), bit-reverse ($d_i=s_{b-i-1}$), bit-shuffle ($d_i=s_{(i-1) \bmod b}$), and bit-transpose ($d_i=s_{(i+b / 2) \bmod b}$)~\cite{Dally_PrinciplesPracticesInterconnection_2004}. \textbf{2)} The PARSEC traces generated by \textit{Netrace}~\cite{Hestness_NetraceDependencyTrackingTraces_2011, Bienia_PARSECBenchmarkSuite_2008} is also evaluated. Since the link width of the original network is $16$ Bytes, the $72$ Bytes and $8$ Bytes packets in \textit{Netrace} are regarded as $5$-flit and $1$-flit packets in our simulator. All packets are injected according to the trace time even if congestion and queuing occur. \textbf{3)} Besides, \textit{Ring Road} is also evaluated as a building block in a scale-out multi-chip network. Cross-chip traffic, which is from interface nodes to interface nodes, is overlaid on the original on-chip traffic. We do not separately evaluate the multi-chip topologies and workload since they have been decoupled from the on-chip network and are beyond the scope of this chapter.
+
+\begin{table}[tb]
+  \centering
+  \caption{Area and power comparison \label{tab:area-power}}
+  \begin{tabular}{rrr|rrr}
+    \toprule
+    \textbf{Modules (hierarchical
+)} & \begin{tabular}[c]{@{}c@{}}\textbf{Area} \\ ($um^2$)\end{tabular} & \begin{tabular}[c]{@{}c@{}}\textbf{Power} \\ ($mW$)\end{tabular} &  \textbf{Modules (hierarchical
+)} & \begin{tabular}[c]{@{}c@{}}\textbf{Area} \\ ($um^2$)\end{tabular} & \begin{tabular}[c]{@{}c@{}}\textbf{Power} \\ ($mW$)\end{tabular} \\
+    \midrule
+    \textbf{2D Mesh (1-CH)}                                               & 68207                                                    &   17.00                                              & \textbf{2D Mesh (2-CH)}                                              & 137889                                                    &    41.17                                                \\
+    \midrule
+    \textbf{Ring Road (1-ring 1G)}                                                 & 61919                                                    &    10.63                                             &     \textbf{Ring Road (2-ring 1G)}                                                   &   85847                                       &        20.21                                      \\
+    - router                                                    & 43738                                                    &   8.79                                                  & - router (1-CH)                                                 &      49227                                       &         15.85                                          \\
+    - ring ($\theta-$)                                          & 10127                                                    &   0.96                                                  &       - ring-0 ($\theta\pm$)                         &     18309                                      &  2.18                                              \\
+    - ring ($\theta+$)                                          & 8054                                                     &    0.88                                              &    - ring-1 ($\theta\pm$)                            &    18311                                          &   2.18                                                 \\
+    \midrule
+    \textbf{Ring Road (1-ring 2G)}                                                 & 61540                                                    &    13.60                                             &     \textbf{Ring Road (2-ring 2G)}                                                   &   85557                                       &        31.87                                      \\
+    - router (1G)                                                    & 43161                                                    &   10.01                                                  & - router (1-CH 1G)                                                 &      48075                                       &         24.73                                          \\
+    - ring ($\theta-$ 2G)                                          & 10266                                                    &   2.03                                                  &       - ring-0 ($\theta\pm$ 2G)                         &     18748                                      &  3.56                                              \\
+    - ring ($\theta+$ 2G)                                          & 8113                                                     &    1.56                                              &    - ring-1 ($\theta\pm$ 2G)                            &    18734                                          &   3.58 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+\subsection{Post-Synthesis Analysis}
+\label{chap07:sec:post-synthesis}
+\subsubsection{Timing Analysis} Timing analyses are applied on the router and ring separately and jointly. The critical path of the single/dual-channel router introduces 0.241ns/0.338ns internal delay on the data arrival time. As a result, the single/dual-channel router achieves 1GHz frequency separately with margins for P\&R and external logic. In comparison, the critical path of the ring introduces only 0.051ns internal delay, and the ring can achieve more than 2Ghz frequency separately. The branched \textit{Ring Road} router is more compact and can also achieve 1GHz frequency. By using a clock domain bridge (CDB), the two components are integrated and finally achieve 1GHz at the router and 2GHz at the ring simultaneously with enough margins.
+
+\subsubsection{Area \& Power} \label{chap07:sec:area-power}
+The area and power results are shown in Table~\ref{tab:area-power}. The baseline 1GHz mesh router has a total network bandwidth of 4 flits/cycle. The 1GHz single-ring \textit{Ring Road} achieves the same router-to-router bandwidth and $1.5\times$ total bandwidth with 91\% area and 63\% power. Increasing the ring frequency gains twice the ring bandwidth (router-to-router bandwidth 4, ring bandwidth 4), resulting in $2.2\times$ bandwidth/area and $2.5\times$ bandwidth/power compared to the mesh router. The dual-channel mesh router (total bandwidth 8) has 2$\times$ area and 2.4$\times$ power compared to the single-channel router. The power overhead of the 2GHz dual-ring \textit{Ring Road} (router-to-router bandwidth 4, ring bandwidth 8) is also significant due to the clock domain bridge and the ring-selection logic. Nevertheless, the bandwidth/area and bandwidth/power are still $2.4\times$ and $1.9\times$ more than the dual-channel mesh router. In summary, \textit{Ring Road} integrates the router and the high-speed ring while simultaneously reducing the area and energy overhead. \textit{Ring Road} bandwidth is much more affordable than the mesh Router.
+
+\subsubsection{Layout}
+We place-and-route the 1GHz dual-channel mesh router and the 2GHz dual-ring \textit{Ring Road} with the 9-track standard cell library, and the layout is shown in Figure~\ref{chap07:fig:layout}. The area of the \textit{Ring Road} is about 56\% of the area of the mesh, consistent with the post-synthesis analysis result.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024MICRO/layout.pdf}
+  \caption{Layout with TSMC12FFC 9-track standard cell library. (a) 1GHz dual-channel mesh router; (b) 2GHz dual-ring \textit{Ring Road} with 1GHz compact router. \label{chap07:fig:layout}}
+\end{figure}
+
+\subsection{Standalone Performance}
+We first evaluate the performance of \textit{Ring Road} as a standalone NoC. The performance of polar-based 2D \textit{Ring Road} under synthetic traffic is shown in Figure~\ref{chap07:fig:traffic-pattern}. Since the ring dimension is the router-less ring with one-cycle latency, the average latency at low load is much lower than the traditional 2D-mesh. From the perspective of topology, the polar-based 2D \textit{Ring Road} is similar to the 2D-torus with only y-direction wraparound links. Therefore, the performance of $n\times n$ \textit{Ring Road} is always better than the $n\times n$ 2D-mesh. However, the ring dimension has a lower latency and a higher bisection bandwidth than the radial dimension; therefore, asymmetric configurations can further balance the traffic distribution at many traffic patterns. Since the router-less ring is affordable to add physical channels, the optimal way is to set a shorter radius and longer rings with multiple overlapping channels. For example, the radius-4 ring-scale-16 overlapping-2 \textit{Ring Road} achieves the best performance in most cases. 
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2024MICRO/traffic-pattern.pdf}
+  \caption{Polar-based 2D \textit{Ring Road} performance under different synthetic traffic patterns. (a-e) Small-scale: 36 nodes; (f-j) Large-scale: 64 nodes. RR-$h$-$n$-$O_R$ refers to the $h$-radius \textit{Ring Road} with $n$ nodes per ring with $O_R$ overlapping. \label{chap07:fig:traffic-pattern}}
+\end{figure}
+
+The performance of the rectangular-2D-mesh-placed \textit{Ring Road} is shown in Figure~\ref{chap07:fig:traffic-pattern-mesh-ring}. Similarly, the \textit{Ring Road} achieves a lower latency at low load under all traffic patterns. However, the throughput is poor without overlapping rings because the scale of the outermost ring for the 64-node network is up to 28. Adding overlapping channels at outer rings is more helpful than adding overlapping channels at all rings. According to the static analysis in Section~\ref{chap07:sec:overlapping-ring}, adding one channel per 8 nodes is enough to achieve optimal performance. For the 64-node rectangular-2D-mesh-placed \textit{Ring Road}, 1/1/2/3 overlapping rings at radius-1/2/3/4 achieve a good performance, which is much lower than the router-less network that requires at least 8 overlapping channels. 
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2024MICRO/traffic-pattern-mesh-ring.pdf}
+  \caption{Rectangular-2D-mesh-placed \textit{Ring Road} performance under different synthetic traffic patterns. RR-$O_0O_2O_3O_4$ refers to the overlapping rings at radius 1, 2, 3, and 4. \label{chap07:fig:traffic-pattern-mesh-ring}}
+\end{figure}
+
+The performance under Parsec workloads is shown in Figure~\ref{chap07:fig:parsec}. Since the real workload is not always heavy, it mainly reflects the performance at medium and burst traffic loads. Even without overlapping, both the polar-based and 2D-mesh-placed \textit{Ring Road} achieve a lower average latency than the traditional 2D-mesh. The same as discussed above, a shorter radius is helpful to achieve a lower latency. To evaluate the traces at a higher load, the injection rate is also increased by 50\% ($1.5\times$). The ring road still has a lower latency. In summary, \textit{Ring Road} achieves better performance than the traditional 2D-mesh. No overlapping channel is required for low-load or small-scale networks; a few overlapping channels are enough for high-load or large-scale networks.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024MICRO/parsec-polar.pdf}
+  \caption{Ring Road performance under Parsec workloads. $1.5\times$ refers to 1.5 times the injection rate. \label{chap07:fig:parsec}}
+\end{figure}
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2024MICRO/traffic-pattern-off-chip.pdf}
+  \caption{Performance under simultaneous on-chip and off-chip traffic. Mesh-8x8-$I_t$ refers to $I_t$ flits/cycle uniform off-chip traffic from each interface node to other random interface nodes. One of the two outermost ring channels is exclusively used by the cross-chip traffic. \label{chap07:fig:traffic-pattern-off-chip}}
+\end{figure}
+
+\subsection{On/off-Chip Traffic Isolation} \label{chap07:sec:traffic-isolation}
+The performance of \textit{Ring Road} is evaluated as the building block in multi-chip networks. Over the original on-chip traffic, we simultaneously apply cross-chip traffic, which sources from interface nodes and terminates at interface nodes. The performance under synthetic traffic is shown in Figure~\ref{chap07:fig:traffic-pattern-off-chip}. Significant performance degradation is observed in the traditional 2D-mesh due to the interference of cross-chip traffic with on-chip traffic. As presented in Section~\ref{chap07:sec:area-power}, it is very expensive to add extra isolated channels in the traditional router-based network, but it is very affordable to add isolated rings in the \textit{Ring Road}. If there are three channels at the outermost ring, one channel can be exclusively used by cross-chip traffic in multi-chip networks. The performance will be affected when the on-chip traffic is heavy; however, no matter how heavy the cross-chip traffic is, the performance of the on-chip traffic is consistent.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024MICRO/parsec-off-chip.pdf}
+  \caption{Parsec performance under simultaneous on-chip and off-chip traffic. One of the two outermost ring channels is exclusively used by the cross-chip traffic. \label{chap07:fig:parsec-off-chip}}
+\end{figure}
+
+The performance of real workloads is shown in Figure~\ref{chap07:fig:parsec-off-chip}. The on-chip traffic average latency of router-based 2D-mesh increases significantly under heavy cross-chip traffic. Since the hotspot of the Parsec traffic is not at the outermost ring, reducing one outermost ring channel leads to little performance loss. As a result, the performance of parsec workload on the \textit{Ring Road} remains constant under 0/0.1/0.25 cross-chip traffic. In summary, the isolation of on-chip and off-chip traffic enables predictable and consistent performance for on-chip communication. 
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024MICRO/energy.pdf}
+  \caption{Normalized energy consumption per data of $8\times 8$ 2D-placed \textit{Ring Road} and mesh. \label{chap07:fig:energy}}
+\end{figure}
+
+\subsection{Power Consumption}
+The power consumption estimation is also done based on the packet traces. In the simulation, different hops that each packet has gone through are recorded; therefore, as shown in Figure~\ref{chap07:fig:energy}, the average power consumption per data is estimated based on the hop counts, and the energy consumption of a router-based hop is normalized to 1. On average, packets in the 2D-placed \textit{Ring Road} go through only 1/5 as many router-based hops as in the $8\times 8$ 2D-mesh. Though the packet averagely goes through many ring-based hops, according to the post-synthesis result in Section~\ref{chap07:sec:area-power}, the power-per-bandwidth of the ring is about 1/4 that of the router. As a result, the normalized average energy consumption per data in the \textit{Ring Road} is only about 40\% that of the 2D-mesh under various workloads.
+
+\section{Summary}
+There are several major limitations of existing router-based network-on-chip architecture in scale-out multi-chip networks. The alternative IMR-based router-less method is low-cost and high-performance, but it is not scalable and flexible. Therefore, we are motivated to combine the advantages of both router and IMR with affordable overhead. In this chapter, we propose a new network-on-chip architecture called \textit{Ring Road}. Routers are retained to provide flexible traffic delivery, but they are much less frequently used with much less overhead. Overlapping rings are used as the high-bandwidth bypass to reduce router overhead and isolate on/off-chip traffic. A new polar-coordinate-based description is introduced to describe the \textit{Ring Road} topology, and new routing designs that decouple intra/inter-chip routing are proposed. Extensive evaluations including circuit implementation, post-synthesis analysis, and cycle-accurate simulation, show that \textit{Ring Road} achieves better performance, lower power consumption, less area overhead, and on/off-chip traffic isolation compared with traditional router-based 2D-mesh.
+

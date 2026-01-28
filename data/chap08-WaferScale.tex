@@ -1,0 +1,622 @@
+% !TeX root = ../thesis.tex
+
+\chapter{Switch-Less Dragonfly on Wafers: A Scalable Interconnection Architecture based on Wafer-Scale Integration}
+\label{chap08:waferscale}
+
+Mainstream high-performance computing (HPC) interconnection architectures are based on switches/routers. High-radix IO modules and switches enable very low-diameter network topologies, \textit{e.g.}, 2 switch-to-switch hops for Slim Fly~\cite{Besta_SlimFlyCost_2014} and PolarFly~\cite{Lakhotia_PolarFlyCostEffectiveFlexible_2022}, 3 hops for Dragonfly~\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008}, and 4 hops for three-stage Fat-Tree~\cite{Stunkel_HighspeedNetworksSummit_2020}. However, high-radix switches are limited in the port number and bandwidth per link. 400G/800G is the maximum bandwidth provided by current Ethernet or InfiniBand adapters/switches~\cite{Routray_NewFrontiers800G_2020,Minkenberg_CopackagedDatacenterOptics_2021,NVIDIA_NVIDIAMQM9700NS2FQuantum_}. The limited physical channels connecting endpoints to the switch significantly constrain the local performance (injection bandwidth), which is critical for some workloads such as AI~\cite{Hoefler_HammingMeshNetworkTopology_2022}. Besides, high-radix switches are expensive and introduce additional latency and energy overhead~\cite{Barroso_DatacenterComputerDesigning_2019,Popa_CostComparisonDatacenter_2010,Greenberg_CostCloudResearch_2008,Popoola_EnergyConsumptionSwitchcentric_2018}. On the other hand, modern computing chips by themselves can provide abundant IO and switching bandwidth no
+weaker than a regular switching chip~\cite{Ignjatovic_WormholeAITraining_2022,Elster_NvidiaHopperGPU_2022,Fischer_91D17nm_2023}, thus introducing the motivation to fully utilize the local bandwidth of computing chips~\cite{Hoefler_HammingMeshNetworkTopology_2022}.
+
+The new advanced packaging technology called \textit{wafer-scale-integration} promises to densely integrate tens of chips and provide ultra-high on/off-wafer bandwidth~\cite{DouglasYu_TSMCPackagingTechnologies_2021,Chun_InFO_SoWSystemonWaferHigh_2020}. For example, a tile of DOJO achieves 10TB/s on-wafer bisection bandwidth and 36 TB/s off-wafer aggregate bandwidth~\cite{Chang_DOJOSuperComputeSystem_2022}, which is far beyond any existing switch. Therefore, if the chips can be directly interconnected with high bandwidth and low latency, it not only improves the network performance but also promises to avoid using costly high-radix switches. However, scaling wafer-scale systems out for large-scale supercomputers still faces many challenges. \textbf{1)} Existing wafer-based systems, including \textit{Waferscale Processor}~\cite{Pal_Designing2048Chiplet14336Core_2021}, \textit{Wafer-Scale GPU}~\cite{Pal_ArchitectingWaferscaleProcessors_2019}, \textit{Wafer-Scale Engine (WSE)}~\cite{Cerebras_WaferScaleDeepLearning_2019, Lauterbach_PathSuccessfulWaferScale_2021, Lie_CerebrasArchitectureDeep_2022}, and \textit{DOJO}~\cite{Chang_DOJOSuperComputeSystem_2022, Talpes_DOJOMicroarchitectureTeslas_2022, GaneshVenkataramanan_ComputeEnablingAI_2022, Talpes_MicroarchitectureDOJOTeslas_2023}, are based on the 2D-mesh topology, which is not scalable due to the large diameter. \textbf{2)} The off-wafer bandwidth has a significant gap with the on-wafer bandwidth, which places higher demands on the hierarchy and configurability. \textbf{3)} Besides, interconnecting 2D-mesh-on-wafer by high-radix topologies introduces serious routing problems. The on-chip and off-chip routing must be designed and evaluated jointly rather than separately.
+
+
+% However, scaling wafer-scale systems out for large-scale datacenters still faces many challenges. This chapter focuses on the challenges of the wafer-based interconnection architecture.
+
+% \textit{\textbf{Motivation 1:} 2D-mesh-on-wafer is insufficient to scale out for large-scale datacenters.} Wafer-scale integration enables ultra-high-density integration and interconnections. Current wafer-scale systems, including \textit{Waferscale Processor}~\cite{Pal_Designing2048Chiplet14336Core_2021}, \textit{Wafer-Scale GPU}~\cite{Pal_ArchitectingWaferscaleProcessors_2019}, \textit{Wafer-Scale Engine (WSE)}~\cite{Cerebras_WaferScaleDeepLearning_2019, Lauterbach_PathSuccessfulWaferScale_2021, Lie_CerebrasArchitectureDeep_2022}, and \textit{DOJO}~\cite{Chang_DOJOSuperComputeSystem_2022, Talpes_DOJOMicroarchitectureTeslas_2022, GaneshVenkataramanan_ComputeEnablingAI_2022, Talpes_MicroarchitectureDOJOTesla_2023}, all adopt an on-wafer 2D-mesh, which is suitable for medium-scale clusters since it is high-bandwidth, implementation-friendly, and scheduling-friendly. However, if scaling out wafer-scale systems by a larger off-wafer 2D-mesh, the network diameter is too large for datacenters. Another approach is to scale out wafers by traditional switch-based high-radix networks, but the switch-centric architecture wastes the high-bandwidth provided by the wafer-scale integration.
+
+% \textit{\textbf{Motivation 2:} High-radix switch is costly and causes bottleneck.} Current DCN architectures (\textit{e.g.}, \textit{Fat-Tree}) are based on switches~\cite{Barroso_DatacenterComputerDesigning_2019, Xia_SurveyDataCenter_2017}. The Dragonfly topology used for high-performance computing (HPC) and supercomputers also requires numerous switches~\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008, DeSensi_InDepthAnalysisSlingshot_2020}.  Therefore, eliminating the switch bottleneck is critical to building large-scale wafer-based interconnection architectures.
+
+% \textit{\textbf{Motivation 3:} Computing chips can provide switching capability by networks-on-chip.} Traditional computing chips have limited IO bandwidth, so switches are indispensable for communication. However, 
+
+% \begin{figure}[tb]
+%   \centering
+%   \includegraphics[width=0.7\linewidth]{../figures/2024SC/intro.pdf}
+%   \caption{Wafer-scale integration promises to increase datacenter density by an order of magnitude. \label{chap08:fig:intro}}
+% \end{figure}
+
+Motivated by these, a new interconnection architecture called \textit{\textbf{Switch-less Dragonfly on Wafers}} is proposed. By utilizing distributed high-bandwidth networks-on-chip-on-wafer, a scalable wafer-based Dragonfly network is built without high-radix switches. The critical issues, including scalability, throughput, diameter, latency, energy, and cost, are quantitatively analyzed and discussed. A simple minimal/non-minimal routing algorithm and methods to reduce the virtual-channel number are proposed. Extensive evaluations, including physical layout and cycle-accurate simulations on various workloads, are conducted based on the architecture. The contributions of this chapter can be summarized as follows:
+\begin{itemize}
+  \item A switch-less method to build the Dragonfly topology is proposed. Costly high-radix switches are eliminated while improving injection/local throughput and maintaining global throughput.
+  \item The wafer-based interconnection architecture is a whole new frontier. The existing 2D-mesh-on-wafer is scaled out into large-scale high-radix networks-of-wafer, achieving much better scalability than any existing wafer-based network.
+  \item Only one additional virtual channel against traditional Dragonfly is required to achieve deadlock-free routing in the switch-less Dragonfly.
+  \item Similar approaches can be applied to other switch-based direct topologies, including but not limited to Slim Fly~\cite{Besta_SlimFlyCost_2014}, PolarFly~\cite{Lakhotia_PolarFlyCostEffectiveFlexible_2022}, and HyperX~\cite{Ahn_HyperXTopologyRouting_2009}.
+\end{itemize}
+
+\section{Motivation}
+
+In the past few years, many wafer-scale systems have emerged. The Tesla \textit{DOJO} integrates 25 D1 dies with an area of 645~$mm^2$~\cite{Fischer_91D17nm_2023}, resulting in a total silicon area exceeding 16,000~$mm^2$~\cite{Talpes_MicroarchitectureDOJOTeslas_2023}. The \textit{WSE-2} designed by \textit{Cerebras} uses field stitching and achieves 850,000 cores (2.6 trillion transistors) on a wafer~\cite{Lie_CerebrasArchitectureDeep_2022}. All existing systems adopt 2D-mesh as the on-wafer topology because it is implementation-friendly and scheduling-friendly. However, planar topologies are insufficient to scale out. For example, the \textit{DOJO} supercomputer scales out the system by a larger 2D-mesh of wafers, resulting in a large diameter of up to 30 wafer-to-wafer hops~\cite{Chang_DOJOSuperComputeSystem_2022}. To reduce the diameter, a centralized switch is used to connect all the edges of the enormous 2D-mesh, which leads to limited scalability and a fault-tolerance problem~\cite{Talpes_DOJOMicroarchitectureTeslas_2022}.
+% In summary, it is essential to present a more scalable interconnection architecture instead of the conventional 2D-mesh-based networks.
+
+% In the past, the IO bandwidth of a computing chip was very limited compared with a switch. For example, the first generation Intel Xeon Scalable processor launched in 2017 has 48 lanes of PCIe3.0 (384Gb/s IO bandwidth in total)~\cite{_IntelXeonPlatinum_}, while the 2nd generation Broadcom Tomahawk switch launched in 2016 has 256 lanes of 25G-SerDes (6.4Tb/s switching bandwidth in total)~\cite{_Tomahawk2BCM56970Series_}. 
+Almost all current HPC network architectures are based on switches. However, high-radix switches are very costly. A switch with $10 \times$ the bisection bandwidth often costs about $100 \times$ more~\cite{Barroso_DatacenterComputerDesigning_2019}. An InfiniBand switch with 64 400G ports is priced over \$40,000~\cite{NVIDIA_NVIDIAMQM9700NS2FQuantum_}.
+The latency and power consumption of high-performance switches cannot be ignored either. The port-to-port latency of an InfiniBand switch is up to 200ns~\cite{Katebzadeh_EvaluationInfiniBandSwitch_2020}, and the power consumption of the switch can be up to 1.7 $KW$~\cite{NVIDIA_NVIDIAMQM9700NS2FQuantum_}. Meanwhile, the single physical link limits the injection bandwidth and local bandwidth between two terminals. For example, two servers are connected to a $64$-port 400G switch, whose total switching bandwidth is 25.6Tb/s, but the communication bandwidth between the two servers is only 400Gb/s.
+
+% The \textit{Fat-Tree} network is the most popular datacenter network architecture~\cite{Stunkel_HighspeedNetworksSummit_2020}, which can support full-throughput among $k^3/4$ servers by using $5k^2/4$ switches of $k$-ports~\cite{Xia_SurveyDataCenter_2017, Barroso_DatacenterComputerDesigning_2019}. The \textit{Dragonfly} is another popular topology for large-scale supercomputers, which can support $k^4/64$ servers by using $k^3/16$ switches of $k$-ports~\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008}.
+
+
+
+\begin{table}[tbh]
+  \centering
+  \caption{External communication and switching capability of several datacenter chips \label{chap08:tab:spec}}
+  \begin{tabular}{ccccccc}
+    \toprule
+    \textbf{Category}           & \multicolumn{3}{c}{\textbf{Switching Chip}} & \multicolumn{3}{c}{\textbf{Computing Chip}}                          \\
+    \textbf{Specification}      & \makecell{\textbf{NVSwitch}                                                                             \\ \cite{Ishii_NvlinkNetworkSwitchNvidias_2022} } & \makecell{\textbf{Tofino2} \\ \cite{Agrawal_IntelTofino2129Tbps_2020} }      & \makecell{\textbf{Rosetta} \\ \cite{DeSensi_InDepthAnalysisSlingshot_2020}}               & \makecell{\textbf{H100}  \\ \cite{Elster_NvidiaHopperGPU_2022,Choquette_NVIDIAHopperH100_2023}} & \makecell{\textbf{EPYC}  \\ \cite{Naffziger_22AMDChiplet_2020, Troester_AMDNextGeneration_2023}} & \makecell{\textbf{DOJO\,D1} \\ \cite{Fischer_91D17nm_2023}} \\
+    \midrule
+    \textbf{Physical Lanes}     & 128                                          & 256                                          & 256  & 36  & 128 & 576 \\
+    \textbf{Data-rate}\,(Gbps)  & 100                                          & 50                                           & 50   & 100 & 32  & 112 \\
+    \textbf{Throughput}\,(Tb/s) & 12.8                                         & 12.8                                         & 12.8 & 3.6 & 4   & 63  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+In recent years, with advances in high-speed wireline and packaging technologies, computing chips have become more powerful in NoC and IO throughput. As shown in Table~\ref{chap08:tab:spec}, the NVIDIA H100 chip has 36 lanes of 100G link (3.6Tb/s IO bandwidth in total)~\cite{Choquette_NVIDIAHopperH100_2023,Ishii_NvlinkNetworkSwitchNvidias_2022}, and the Tesla \textit{DOJO} D1 chip has 576 lanes of 112G-SerDes (63Tb/s IO bandwidth in total)\cite{Fischer_91D17nm_2023}. The total external bandwidth and NoC throughput of current high-end computing chips are already at the same level as mainstream switching chips and even exceed some high-end switches. Therefore, many interconnection networks, including TofuD\cite{Ajima_TofuInterconnect_2018}, \textit{TPU}~\cite{Jouppi_TPUV4Optically_2023}, \textit{Wormhole}~\cite{Ignjatovic_WormholeAITraining_2022},  \textit{DOJO}~\cite{Talpes_MicroarchitectureDOJOTeslas_2023}, and \textit{Groq}~\cite{Abts_GroqSoftwaredefinedScaleout_2022}, are using local interfaces and on-chip networks to scale out through direct topologies. The injection/local bandwidth of these networks can be much higher than the limited bandwidth through a switch.
+
+
+
+% \subsection{State-of-the-Art Interconnection Networks}
+
+
+\begin{figure}[tbh]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2024SC/architecture.pdf}
+  \caption{Hierarchical architecture of the wafer-based switch-less Dragonfly. (a) A chiplet has an on-chip network and several short-reach low-latency interfaces used for interconnection. (b) Several chiplets are connected by a planar topology (2D-mesh as the default), forming a C-group. The remaining short-reach interfaces at the edges of the C-group are converted to long-reach interfaces for upper-level high-radix interconnection. (c)(d) Each wafer consists of several C-groups, and several wafers form a W-group. All C-groups in a W-group are fully-connected. (e) All the w-groups in the system are also fully-connected, just as the Dragonfly topology.\label{figure:architecture}}
+\end{figure}
+
+
+% \subsection{Routing Basics}
+% Routing is essential for interconnections. Two highly related routing technologies are introduced in this section.
+
+% as long as unsafe packets cannot form a dependency circle, deadlocks are avoided. We can describe this by Definition~\ref{def:unsafe-channels} and Lemma~\ref{lemma:flow-control}.
+
+% \begin{definition}
+%   \label{def:unsafe-channels}
+%   An \textit{safe channel} $c_{s}$ is a channel (input buffer) that satisfy: $\forall$ destination node $d$, $\exists$ a minimal and minus-first path from $c$ to $d$; otherwise, the channel is unsafe. In other words, any packet in \textit{safe channels} is safe but may be unsafe in \textit{unsafe channels}. The set of all unsafe channels is denoted ${C_\text{unsafe}}$.
+% \end{definition}
+
+% \begin{lemma}
+%   \label{lemma:flow-control}   
+%   $\forall$ topology and labeling, the minimal fully-adaptive routing with MFR-based safe/unsafe flow-control is deadlock-free if ${C_\text{unsafe}}$ is acyclic.
+% \end{lemma}
+
+% \begin{lemma}
+%   \label{lemma:flow-control}
+%   $\forall$ topology and labeling, the minimal adaptive routing with MFR-based safe/unsafe flow-control is deadlock-free if \textit{unsafe} packets cannot form a dependency circle.
+% \end{lemma}
+
+\section{Architecture}
+The following symbols are used in the description:
+
+\begin{tabular}{ll}
+  $n$ & the number of interfaces (IO ports) of a chiplet                          \\
+  $m$ & the scale of the 2D-mesh of chiplets in a C-group                         \\
+  $k$ & the number of external interfaces of a C-group                            \\
+  $a$ & the number of C-groups in a wafer                                         \\
+  $b$ & the number of wafers in a W-group                                         \\
+  $h$ & the number of global ports of a C-group used to connect to other W-groups \\
+  $g$ & the number of W-groups in the system                                      \\
+  $N$ & the total number of terminals/endpoints/chiplets                          \\
+\end{tabular}
+
+\subsection{Topology Description}
+\label{chap08:sec:topology}
+As shown in Figure~\ref{figure:architecture}, the wafer-based switch-less Dragonfly architecture consists of 5 physical levels: chiplet, C-group, wafer, w-group, and system. Compared with the traditional switch-based Dragonfly~\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008}, the chiplet is equivalent to the terminal (processor), the C-group is equivalent to the Dragonfly switch (router), and the W-group is equivalent to the Dragonfly router group.
+
+\subsubsection{Chiplet} As shown in Figure~\ref{figure:architecture}(a), the chiplet is the smallest component of the system. Each chiplet has an on-chip network and $n$ interconnection interfaces. The total IO ports, including memory and other peripherals, can be much more, but we focus only on the interconnection interfaces. These physical links are originally short-reach (\textit{e.g.}, UCIe~\cite{_UniversalChipletInterconnect_2023} or XSR SerDes~\cite{_CommonElectricalCEI_2024}) but have low latency and power consumption.
+
+\subsubsection{C-Group} Chiplets are clustered into a chiplet-group by an on-wafer planar network as shown in Figure~\ref{figure:architecture}(b). 2D-mesh is adopted as the default topology in the C-group because it is shortly-connected and implementation-friendly. A C-group consists of $m \times m$ chiplets. If each chiplet has $n/4$ ports at each edge, then a C-group has a total of $k=nm$ peripheral external ports. A C-group is equivalent to a switch in the traditional Dragonfly topology, with switching functionality realized through on-chip and intra-C-group interconnections. All the $k$ short-reach (SR) external interfaces of the C-group are converted to long-reach (LR) interfaces (\textit{e.g.}, LR SerDes~\cite{_CommonElectricalCEI_2024} and optic~\cite{Maniotis_ScalingHPCNetworks_2020}) through conversion modules to support the high-radix connectivity of the upper level.
+
+\subsubsection{Wafer \& W-Group} As shown in Figure~\ref{figure:architecture}(c)(d), each wafer consists of $a$ C-groups, and each W-group consists of $b$ wafers.
+All $ab$ C-groups in a W-group are fully connected: each C-group connects to every other $a-1$ C-groups on the same wafer and every other $a(b-1)$ C-groups on the other wafers. It is feasible for $a=1$, then a whole wafer is a C-group, and there is no on-wafer all-to-all interconnection. When $a>1$, due to the wiring distance limitation, the logical on-wafer all-to-all connections are implemented off-wafer physically, which is further illustrated in Section~\ref{chap08:sec:on-wafer-long-distance}. The W-group is equivalent to the group with $ab$ switches in the traditional Dragonfly topology. Due to the ultra-high density of wafer-scale integration, one cabinet can hold an entire group that occupies a dozen cabinets in the traditional datacenter.
+
+\subsubsection{System} The entire system has $g$ W-groups. As shown in Figure~\ref{figure:architecture}(e), all W-groups are also fully connected: each connects to the other $g-1$  W-group by at least one link. Subtracting $ab-1$ interfaces used for local intra-W-group connections, the maximum number of global ports of a C-group is $h = k - ab + 1$, and the total number of W-groups in the system is $g = abh + 1$.
+
+\subsection{Analysis}
+\subsubsection{Scalability}
+The total number of terminals (chiplets) in the wafer-based switch-less Dragonfly network described in Section~\ref{chap08:sec:topology} is:
+\begin{equation}
+  N = abm^2 \times g = abm^2[ab(mn-ab+1)+1].
+\end{equation}
+Using a very small configuration $(a,b,m,n) = (2,4,2,6)$, the total chiplet number can reach 1K. The scale of the traditional Dragonfly network is bounded by the switch radix. However, in the switch-less Dragonfly, the functionality of the switch is realized by the network-of-chiplet in the C-group; therefore, the network scale can be very huge. Nevertheless, the scalability of the switch-less Dragonfly is constrained by two main factors:
+\begin{itemize}
+  \item \textbf{The physical scale of the wafer.} The maximum number of terminals (chiplets) that can be integrated within a C-group is limited by the area of the wafer (diameter $300mm$). With current technologies, a wafer can fit more than 64 server chips~\cite{SkyJuice_MonolithicSapphireRapids_2022}, which is a considerable scale.
+  \item \textbf{The performance of the chiplet network within the C-group.} Forwarding through the network is not as straightforward as forwarding through a non-blocking switch. Therefore, as the scale increases, the intra-C-group network may become the bottleneck due to the competition of the intra/inter-C/W-group traffic. Related issues are further discussed in the following subsections.
+\end{itemize}
+% If we take $t = ab$ as the variable, $N$ reaches the maximum when $t=ab \approx \frac{2}{3}k = \frac{2}{3}mn$. In this case, the ratio of local to global channels is about $\frac{h}{t}\approx \frac{1}{2}$, which is consistent with the conclusion in the traditional Dragonfly.
+
+\subsubsection{Throughput}
+\label{chap08:sec:throughput}
+If the bandwidth of all physical links is $1$ flit/cycle, the global saturation throughput (injection rate) $T_\text{global}$ of the switch-less Dragonfly can be estimated by the bisection bandwidth $B_C$ and the topology~\cite{Dally_PrinciplesPracticesInterconnection_2004}:
+\begin{equation}
+  \label{eq:global}
+  \begin{aligned}
+    T_\text{global} & < \frac{2B_C}{N} = \frac{(g/2)^2 \times 2 \times 2}{N}             \\
+                    & = \frac{(mn-ab+1)}{m^2} \ [\text{flits}/\text{cycle}/\text{chip}].
+  \end{aligned}
+\end{equation}
+For the traditional Dragonfly, the global-local ratio $h/t\approx 1/2$ maintains load-balance because each packet traverses one global and two local channels~\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008}. In the switch-less Dragonfly, the global-local ratio can also be adjusted to about $1/2$ when $ab \approx (2/3)k = (2/3)mn$, $m^2 \approx (1/2)ab$. In this case, the theoretical global throughput limit in Equation (\ref{eq:global}) reaches $1$ flit/cycle/chip, the same as the traditional Dragonfly. Therefore, a reasonable configuration to achieve both global load balance and high throughput is:
+\begin{equation}
+  \label{eq:configuration}
+  \left\{
+  \begin{array}{l}
+    n = 3m, \\
+    ab = 2m^2.
+  \end{array}
+  \right.
+\end{equation}
+As for local throughput, the injection rate in the switch-based Dragonfly is bounded by the single physical link between the chip and the switch ($1$ flit/cycle/chip). In the switch-less Dragonfly, chiplets in the C-group are connected through a network with multiple physical links, thus can achieve higher local throughput. The local intra-W-group saturation injection rate $T_\text{local}$ can be estimated as Equation (\ref{eq:local}):
+\begin{equation}
+  \label{eq:local}
+  T_\text{local}  < \frac{(ab/2)^2\times 2 \times 2}{abm^2} = \frac{ab}{m^2} = 2 \ [\text{flits}/\text{cycle}/\text{chip}],
+\end{equation}
+twice as much as the throughput of the switch-based Dragonfly with the configuration of Equation (\ref{eq:configuration}). Since 2D-mesh is adopted in the C-group, the theoretical intra-C-group saturation throughput $T_\text{cg}$ can be estimated as Equation (\ref{eq:cg}):
+\begin{equation}
+  \label{eq:cg}
+  T_\text{cg} < \frac{(nm/4)\times 2 \times 2}{m^2} = \frac{n}{m} = 3 \ [\text{flits}/\text{cycle}/\text{chip}],
+\end{equation}
+which is also much better than the traditional switch-based Dragonfly. Therefore, the wafer-based switch-less Dragonfly can achieve higher injection/local throughput than the traditional switch-based Dragonfly. \textbf{However, bottlenecks can still exist due to the competition for the intra-C-group bandwidth and the imbalance of traffic distribution.} The total full-duplex bisection bandwidth $B_\text{cg}$ of the 2D-mesh-in-C-group is
+\begin{equation}
+  B_\text{cg} = \frac{nm}{2} = \frac{k}{2} \ [\text{flits}/\text{cycle}],
+\end{equation}
+which is half of the $k$-port non-blocking switch ($k$ flits/cycle).
+% From the chip's perspective, the throughput in Equation~\ref{eq:local} is sufficient; however, from the perspective of the on-chip cores, the big 2D-mesh-in-C-group may be insufficient. For a huge multi-chiplet 2D-mesh as the \textit{DOJO} (refer to Figure~\ref{chap08:fig:noc}(d)), the throughput for each core can be as low as:
+% \begin{equation}
+%   \label{eq:noc}
+%   T_\text{2D-mesh} < \frac{(nm/4)\times 2 \times 2}{(nm/4)^2} =\frac{16}{nmK} \ [\text{flits}/\text{cycle}/\textbf{core}],
+% \end{equation}
+% where $K$ is the number of cores attached to each on-chip router. 
+As a result, the inter-C-group traffic will compete with the intra-C-group traffic for the bandwidth provided by 2D-mesh. Therefore, to prevent the intra-C-group network from becoming the bottleneck under extreme traffic, a larger intra-C-group link bandwidth or higher-bandwidth topology, such as HexaMesh~\cite{Iff_HexaMeshScalingHundreds_2023}, is required. Higher intra-C-group bandwidth is easy and affordable to achieve by wafer-level integration. For example, the UCIe die-to-die interface can provide $1317$ GB/s/$mm$ die edge density ($947$ GB/s/$mm^2$ area density) on the wafer~\cite{_UniversalChipletInterconnect_2023}, much larger than traditional off-chip links.
+% It is also important to ensure a balanced traffic distribution. If the external ports are evenly distributed across each chiplet, the traffic load is relatively balanced; otherwise, if the ports are only at some chiplets, the imbalanced traffic can lead to poor network performance.
+
+
+\subsubsection{Diameter}
+The diameter of the Dragonfly network consists of one global hop and two local hops. Therefore, in the worst case, a packet in the switch-less Dragonfly goes through four C-groups: source C-group, destination C-group, and two intermediate C-groups. Each 2D-mesh-based C-groups has a diameter of $2(m-1)$ chiplet-to-chiplet hops. At the same time, each inter-C-group hop requires two additional SR-LR conversion hops. Therefore, the diameter (only off-chip hops are counted) of the wafer-based switch-less Dragonfly can be described as Equation (\ref{eq:diameter}):
+\begin{equation}
+  \label{eq:diameter}
+  D = \underbrace{H_g + 2H_l}_\text{Dragonfly hops} + \underbrace{(8m-2)H_{sr}}_\text{intra-C-group hops} ,
+\end{equation}
+where $H_g$ is a global hop, $H_l$ is a local hop, $H_{sr}$ is an on-wafer short-reach hop or a SR-LR hop. For comparison, the diameter of the traditional switch-based Dragonfly is $H_g + 2H_l + 2H_l^*$, where $H_l^*$ is a hop from the terminal (processor) to the switch, whose typical cost is similar to a local hop. The rough cost of these hops is compared in Table~\ref{chap08:tab:hop}~\cite{DeSensi_InDepthAnalysisSlingshot_2020, Sella_FECKilledCutThrough_2018,_CommonElectricalCEI_2024, Katebzadeh_EvaluationInfiniBandSwitch_2020,  Synopsys_DesignWareDietoDie112G_2021, Frankel_ProspectsOpticalTransceivers_2021, DavideTonietto_EnergyEfficiencySerial_2023,Navaridas_UnderstandingImpactArbitration_2024}.
+\begin{table}[tbh]
+  % \fontsize{8pt}{10pt}\selectfont
+  \centering
+  \caption{Comparison of hop cost. \label{chap08:tab:hop}}
+  \begin{tabular}{ccccc}
+    \toprule
+                             & $H_g$              & $H_l$              & $H_{sr}$ & $H_\text{on-chip}$ \\
+    \midrule
+    \textbf{Physical Medium} & Optical Cable      & Copper Cable       & RDL      & Metal Layer        \\
+    \textbf{Latency} (ns)    & $150 + \text{ToF}$ & $150 + \text{ToF}$ & $\sim 5$ & $\sim 1$           \\
+    \textbf{Energy} (pj/bit) & $20 + $            & $20 + $            & $\sim 2$ & $\sim 0.1$         \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Ignoring protocol layers and considering only the physical layer, the latency of a short-reach hop generally comes from the PHY (\textit{e.g.} UCIe and XSR SerDes~\cite{_CommonElectricalCEI_2024}). When the transmission distance exceeds $100 mm$, forward error correction (FEC) must be introduced, significantly increasing the latency by tens of nanoseconds~\cite{Sella_FECKilledCutThrough_2018}. Above $10 m$, electro-optical (E-O) conversion is necessary, and time-of-flight (ToF) in fiber can no longer be ignored. For instance, the latency of a $10 m$ optical link can easily be up to $200 ns$, which is approximately $40 \times$ higher than the on-wafer short-reach link. Besides the latency, the energy cost of long-distance hops is also much larger than the on-wafer hops. In the traditional Dragonfly, each packet must traverse these two local hops; however, in the switchless Dragonfly, the number of short-reach hops is not always high.
+% \begin{table}[tb]
+%   % \fontsize{8pt}{10pt}\selectfont
+%   \centering
+%   % \setlength{\tabcolsep}{3pt}
+%   \renewcommand\arraystretch{1.3}
+%   \caption{Comparison on the Power of Building Blocks \label{tab:energy-comparison}}
+%   \begin{tabular}{|r|c|c|c|}
+%     \hline
+%     \textbf{Networks}                       & \textbf{\# Node} & \textbf{\# Switch} & \textbf{Total Power (kW)} \\ \hline
+%     \multirow{2}{*}{\bf Fat Tree}           & 1K               & 320                &       832        \\ \cline{2-4}
+%                                             & 8K               & 1280               &        6656      \\ \hline
+%     \multirow{2}{*}{\bf \begin{tabular}[c]{@{}r@{}}SW-based \\ Dragonfly\end{tabular}} & 1K              & 256                &      640       \\ \cline{2-4}
+%                                             & 16K              & 2048               &      12288       \\ \hline
+%     \multirow{2}{*}{\bf \begin{tabular}[c]{@{}r@{}}SW-less \\ Dragonfly\end{tabular}}  & 1K               &      /        &        512 (-38.5\%)      \\ \cline{2-4}
+%                                             & 16K              &         /      &    8192 (-33.3\%)          \\ \hline
+%   \end{tabular}
+% \end{table}
+
+
+
+% \subsubsection{Power \& Energy} \label{chap08:sec:energy-saving} \hl{From the perspective of a cabinet with a certain power budget, it is the saved energy that brings the real benefit. Assuming a power consumption of 500W per compute node, and the power consumption of the switch is estimated Equation~{\ref{eq:energy}}, where n is the port number, B is the bandwidth per port (Gbps), and E is the transmission energy efficiency (pj/bit). }
+% \begin{equation}
+%   \label{eq:energy}
+%   \begin{aligned}
+%     P_{SW} = 2n \times B \times E \\
+%   \end{aligned}
+% \end{equation}
+% If we build networks of different topologies and scales with 200GB/s switches (1kW for 16-port and 2kW for 32-port switch), the energy estimation result is shown in Table~{\ref{tab:energy-comparison}}. More than 30\% of the energy is saved by the switch-less Dragonfly compared with the traditional switch-based networks. If adopting a higher-radix switch with higher bandwidth (\textit{e.g.}, NVLINK~{\cite{Ishii_NvlinkNetworkSwitchNvidia_2022}}), the switch energy overhead can be more significant. However, eliminating the switches can aggravate the traffic on the wafer/chip. Since the energy-consumption of short-reach on-wafer hops is much lower than that of the long-reach off-wafer hops, the overhead on-wafer is not significant. More detailed quantitative evaluations are presented in Section~{\ref{chap08:sec:energy-evaluation}}. 
+
+
+% \begin{figure}[tb]
+%   \centering
+%   \includegraphics[width=0.75\linewidth]{../figures/2024SC/switch-number.pdf}
+%   \caption{Wafer-scale integration promises to increase datacenter density by an order of magnitude. \label{chap08:fig:intro}}
+% \end{figure}
+
+\subsubsection{Collective Communication}
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.7\linewidth]{../figures/2024SC/allreduce.pdf}
+  \caption{Bottleneck of the switch-less Dragonfly in collective communication. \label{chap08:fig:allreduce} (a) Ring AllReduce algorithm; (b) 2D algorithm for AllReduce within the 2D-mesh-based C-group; (c) Local/global link underutilization due to injection bandwidth limit.}
+\end{figure}
+The throughput analysis in Section~\ref{chap08:sec:throughput} is based on the assumption that the traffic is uniformly distributed across the bisection links. Under real workloads, the bottleneck of the switch can be more visible. As shown in Figure~\ref{chap08:fig:allreduce}, if the ring-based AllReduce algorithm is performed on a switch-based topology, the maximum bandwidth of the ring is $1$ flit/chip/cycle, and the latency of $N$ nodes is $O(N)$. On the 2D-mesh, as shown in Figure~\ref{chap08:fig:allreduce}(b), 2D algorithms can be performed to reduce the latency to $O(\sqrt{N})$~\cite{Kumar_HighlyAvailableData_2020, Luczynski_NearOptimalWaferScaleReduce_2024,Sensi_SwingShortcuttingRings_2024}. Besides, \textit{bidirectional pipelined rings} can also be used to further reduce the latency~\cite{Hoefler_HammingMeshNetworkTopology_2022}. For inter-router communication, the injection bandwidth can also become the bottleneck. As shown in Figure~\ref{chap08:fig:allreduce}(c), in a typical Dragonfly, terminals take up only a quarter of the switch ports (bandwidth). As a result, it is hard for a collective algorithm to fully utilize all the bandwidth, especially for small-scale jobs or hierarchical algorithms~\cite{Feng_OptimizedMPICollective_2022}. For the 2D-mesh-based C-group, the injection bandwidth is adequate; thus, the total off-C-group bandwidth can be fully utilized. 
+% \begin{table}[ht]
+%   \centering
+%   \setlength{\tabcolsep}{3pt}
+%   \renewcommand\arraystretch{1.3}
+%   \caption{Comparison on switch requirement \label{table:cost}}
+%   \begin{tabular}{|c|c|c|c|c|}
+%   \hline
+%                 & \multicolumn{2}{c|}{Small-scale ($1K$ chips)} & \multicolumn{2}{c|}{Large-scale ($16K$ chips)} \\ \hline
+%   Topology      & Dragonfly   & Fat-Tree   & Dragonfly    & Fat-Tree   \\ \hline
+%   Switch radix  &    $16$    &     $16$   &    $32$     &   $40$   \\ \hline
+%   Switch number &   $256$     &    $320$    &    $2048$    &   $2000$   \\ \hline
+%   \end{tabular}
+%   \end{table}
+% As shown in Table~\ref{table:cost}, for a small cluster of $1K$ chips, 256 switches of 16 ports are saved compared with the Dragonfly, and 320 switches of 16 ports are saved compared with the 3-stage Fat-Tree. For a large cluster of $16K$ chips, 2048 switches of 32 ports are saved compared with the Dragonfly, and 2000 switches of 40 ports are saved compared with the 3-stage Fat-Tree.
+
+\begin{table}[tb]
+  \fontsize{8.5pt}{10pt}\selectfont
+  \centering
+  \setlength{\tabcolsep}{2pt}
+  \renewcommand\arraystretch{1.1}
+  \caption{Comparison of key specifications between the switch-less Dragonfly and other topologies. All configurations except 2D-Mesh are selected to have the maximum number of nodes for radix-64 switches. \label{chap08:tab:comparison}}
+  \begin{tabular}{ccccccccc}
+    \toprule
+    \textbf{Network}     & \textbf{Chip-radix} & \textbf{SW-radix}   & \textbf{\#\,Switch} & \textbf{\#\,Cabinet} & \textbf{\#\,Processor} & \textbf{Cable Number\,/\,Length}    & $\bf T_\textbf{local}$ & $\bf T_\textbf{global}$ \\
+    \midrule
+    \textbf{2D-Mesh\,\&\,Switch}  & $8$                 & $60$                & $1$                 & $2$                  & $450$                  & $/$                                 & $1.6$                  & $0.53$                  \\
+    \hline
+    \textbf{Three-Stage Fat-Tree}        & $1$                 & \multirow{3}*{$64$} & $5120$              & $608$                & $65536$                & $N=197K$                            & $1$                    & $1$ \\              
+    \textbf{Three-Stage Fat-Tree}        & 4                   &                     & $20480$             & $896$                & $65536$                & $N=786K$                            & 4                      & $4$  \\             
+    \textbf{Three-Stage F-T (3:1)} & 4                   &                     & $14336$             & $960$                & $98304$                & $N=655K$                            & 4                      & $4/3$                   \\
+    \hline
+    \textbf{1-Plane Hx4Mesh}             & $4$                 & \multirow{2}*{$64$} & $5120$              & $352$                & \multirow{2}*{$65536$} & $N=197K$                            & $2$                    & $1/2$                   \\
+    \textbf{4-Plane Hx4Mesh}             & $16$                &                     & $20480$             & $640$                &                        & $N = 786K$                          & $8$                    & $2$                    \\
+    \hline
+    \textbf{Co-Packaged PolarFly} & $1$                 & $64$                & $4033$              & $504$                & $129056$               & $N=129K$                            & $1$                    & $1$                     \\
+    \hline
+    \textbf{Dragonfly (Slingshot)}       & $1$                 & $64$                & $17440$             & $2180$               & $279040$               & $N$=$698K \,/\, L$=$154K$$\cdot$$E$ & $1 (1)$                    & $1$                     \\
+    \hline
+    \textbf{Switch-less Dragonfly}       & $12$                & $/$                 & $0$                 & $545$                & $279040$               & $N$=$419K \,/\, L$=$73K$$\cdot$$E$  & $3 (2)$                    & $1$                     \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Comparison by Case Study}
+\label{chap08:sec:casestudy}
+The specifications of several typical HPC interconnection networks are compared under specific configurations in Table~\ref{chap08:tab:comparison}. All links are assumed to have the same bandwidth (normalized as 1), and $T_\text{local}$ is the theoretical throughput of a subset of processors (\text{e.g}, a group of the Dragonfly and a Hx4Mesh board of HammingMesh). All the topologies attempt to fully utilize the 64-port switch. A switch-less Dragonfly of the same scale as the Slingshot shown in Figure~\ref{chap08:fig:slingshot} is used for comparison~\cite{DeSensi_InDepthAnalysisSlingshot_2020}. The configuration of the switch-less Dragonfly is as follows:
+\begin{itemize}
+  \item $n=12, m=4$, Every chiplet has $3$ external ports at each edge, and chiplets form the C-group by a 4$\times$4 2D-mesh.
+  \item $a=4, b=8$, Each wafer has 4 C-groups (64 chiplets), and eight wafers form a W-group (512 chiplets).
+  \item Each W-group has a total of 544 off-W-group ports, so there are up to $g=545$ W-groups and a total of $N=279040$ chiplets.
+\end{itemize}
+% For the DOJO-style topology~\cite{Talpes_MicroarchitectureDOJOTesla_2023, Talpes_DOJOMicroarchitectureTeslas_2022, GaneshVenkataramanan_ComputeEnablingAI_2022, Chang_DOJOSuperComputeSystem_2022}, we assume each chip has two ports at each edge. $6\times 3$ wafers ($30 \times 15$ chips) form a 2D-mesh with full connectivity, and two long edges are connectd to a switch by one port per chip (60 ports in total). As a result, the on-wafer bisection bandwidth is $20$, and the global bisection bandwidth is $120$ ($60$ from the switch, $60$ from the mesh). The diameter contains $2$ wafer-switch hops, $2$ wafer-to-wafer hops and 18 short-reach hops. Due to the limited scalability, it is only suitable for medium-scale AI clusters but not for large-scale supercomputers.
+
+%Fat-Tree 5*k*k/4 = k/2 * (k/2 + K) + k*k/2 switches  k*k*k/4 servers
+% Spine + Leaf = k/2 * (k/2 + K) = 3*k*k/4
+% 1 cabinet = 64 blades (2 processor per blade) = 128 processors
+% 1 blade = 32 Hx4Mesh board or 8 PolarFly Co-package or 8 Wafer 
+% 1 Wafer = 32 64-port core switch
+
+\subsubsection{Bandwidth Trade-off} The injection bandwidth can become the bottleneck for most existing switch-based topologies, including Fat-Tree, Dragonfly, and PolarFly. However, it is not easy to simply increase injection/ejection channels because available terminal ports are limited by the switch radix and network scale. Doubling the ports of a traditional endpoint results in doubling the requirement for the network building blocks. If we are willing to sacrifice the diameter and scalability, mesh/torus or DOJO-like topologies can provide adequate bandwidth for a small-scale system (hundreds of chips). Or, if we are willing to sacrifice the global throughput, the tapered Fat-Tree is a potential choice. Alternatively, the HammingMesh enables flexible configurations for different scales, diameters, bandwidth, and costs; however, it is still constrained by the Fat-Tree backbone. The \textit{switch-less Dragonfly on wafer} provides another approach to directly build high-radix networks without switches. The intra-C-group and intra-W-group local throughput reaches $3$ and $2$ flits/cycle/chip, respectively, which is much higher than the traditional switch-based networks. With high-bandwidth on-wafer interconnects, the throughput can be even higher; at the same time, the global throughput is maintained. In summary, high injection/local/global bandwidth, low diameter, low cost, and high scalability, are achieved simultaneously.
+
+% HammingMesh is a similar but more scalable topology by using global Fat-Tree~\cite{Hoefler_HammingMeshNetworkTopology_2022}. A three-stage Fat-Tree based on 64-port switches has $5120$ switches and $65536$ terminal ports in total (for each plane). Therefore, at most $4096$ H4x4Mesh boards can be connected, resulting in a total of $65536$ chips. The global throughput of the HammingMesh based on $n$-plane H$a$x$a$Mesh boards is $2n/a$~\cite{Hoefler_HammingMeshNetworkTopology_2022}.
+
+\subsubsection{PolarFly} The co-packaged PolarFly achieves the lowest diameter with integrated high-radix optical IO modules (OMs). PolarFly~\cite{Lakhotia_PolarFlyCostEffectiveFlexible_2022} does not discuss the in-package network in detail though it is critical for the overall performance. If there are multiple processors and OMs in each package, besides all external IO ports, additional processor-to-OM and OM-OM ports inside the package are required. These intra-package hops are regarded as short-reach hops, equivalent to on-wafer hops. With current technologies, it is hard to integrate $32$ high-performance processors and multiple centralized high-radix IO modules in a single package. However, with a wafer-scale integration and a similar switch-less approach, the \textit{switch-less PolarFly on wafer} promises to provide a more scalable and cost-effective solution.
+
+\subsubsection{Cost} \label{chap08:sec:cost} The switch-less Dragonfly avoids using costly high-radix switches, thus significantly reducing the overall cost, including switches themselves and related power/cooling infrastructure. With wafer-scale integration, substrates and PCBs are also eliminated while providing affordable high-bandwidth interconnects. $1 mm^2$ silicon-on-wafer ($<1$\$) provides more than $800$ GB/s~\cite{_UniversalChipletInterconnect_2023} on-wafer bandwidth, much cheaper than the traditional inter-rack IOs and cables. Besides, wafer-scale integration also increases the density, thus reducing the physical size of the entire system. According to ~\cite{HPE_HewlettPackardEnterprise_2022}, one cabinet can host 64 blades, each consisting of 2 nodes; therefore, assuming 8 switches are at the top-of-rack (ToR), the Slingshot system requires 2180 cabinets in total. Besides, it is assumed that 32 core switches (except the ToR switch) can be placed in a cabinet for Fat-Tree-based networks. Short-reach 2D-mesh-on-PCB and co-package can increase the density, thus each cabinet is supposed to host 16 Hx4Mesh boards or 8 PolarFly co-packages (twice chips per cabinet). Conservative estimation suggests that the density of a single cabinet can increase by at least $4 \times$ through wafer-scale integration~\cite{Tesla_TeslaAIDay_2022, Chang_DOJOSuperComputeSystem_2022,Lauterbach_PathSuccessfulWaferScale_2021}. As a result, the wafer-based switchless Dragonfly only requires 545 cabinets (8 wafers per cabinet) to hold a system as large as the maximum Slingshot. If the Slingshot is flatly laid out in the datacenter at scale $E \times E$, the total cable length of inter-cabinet links can be estimated by cabinet-to-cabinet distance at $154K\cdot E$. For comparison, the local cable of switchless Dragonfly is very short (intra-cabinet), and the total cable length is only $73K\cdot E$, less than half of the switch-based Dragonfly. Besides, all the terminal adapters and cables are also eliminated. In summary, the benefits of wafer-level integration and switch-less are all-encompassing, saving numerous datacenter building blocks.
+
+\subsection{Architecture Variations}
+\label{chap08:sec:varision}
+\subsubsection{Small-Scale Networks} HPC systems are not always very large. A single-chiplet C-group with only 12 external ports can be used to build a system of up to $333$ chips (nodes). In this case, short-reach interfaces and conversion modules are not necessary. Besides, the inter-W-group interconnection can be eliminated; that is to say, the system is a single fully connected W-group, whose diameter is only $H_l+(4m-2)H_{sr}$.
+
+% \begin{figure}[tb]
+%   \centering
+%   \includegraphics[width=0.9\linewidth]{../figures/2024SC/variations.pdf}
+%   \caption{Alternative organizations of the wafer-based switch-less architecture. (a) C-groups within the W-group are connected by a 2D-flattened-butterfly. (b) Wafer-level interconnections are connected off-wafer. \label{chap08:fig:variations}}
+% \end{figure}
+
+\subsubsection{Topology Variations} For many domain-specific workloads such as AI training, the requirement for networks can be various~\cite{Hoefler_HammingMeshNetworkTopology_2022}. Therefore, the topology is supposed to be adjustable. First, the parameters ($a,b,m,n$) of the switch-less Dragonfly can be changed to achieve unbalanced local/global bandwidth.
+% As shown in Figure~\ref{chap08:fig:variations}(a), 
+Second, the topology of the intra-C-group network can be changed to HexaMesh~\cite{Iff_HexaMeshScalingHundreds_2023} or other topologies.
+Third, C-groups within the W-group can be connected by a flatter topology (\textit{e.g.} 2D-flattened-butterfly~\cite{Kim_FlattenedButterflyCostefficient_2007, Kim_FlattenedButterflyTopology_2007}), which consumes fewer local ports and is easier to lay out. Besides, other state-of-the-art topologies including but not limited to Slim Fly~\cite{Besta_SlimFlyCost_2014}, PolarFly~\cite{Lakhotia_PolarFlyCostEffectiveFlexible_2022}, and HyperX~\cite{Ahn_HyperXTopologyRouting_2009}, can also be built by integrating endpoints under a switch through a planar topology on the wafer.
+
+\subsection{Wafer-Level Long-Distance Interconnection} 
+\label{chap08:sec:on-wafer-long-distance}
+As discussed above, when higher-radix topologies are used intra-C-group, or when there is more than one C-group on each wafer, wafer-level long-distance interconnections are required. However, due to the limitations of manufacturing, traditional technologies, such as field stitching~\cite{Lauterbach_PathSuccessfulWaferScale_2021,Flack_LithographicManufacturingTechniques_1992}, only allow short-distance wiring within a lithographic reticle. The advanced mask stitching technologies~\cite{Hou_WaferLevelIntegrationAdvanced_2017,Huang_WaferLevelSystem_2021,Hou_SupercarrierRedistributionLayers_2023} allows cross-reticle redistribution layer (RDL), and the reliability/quality of the wires across the stitching boundary is fine (negligible resistance contribution). However, though the stitched RDL promises to allow long-distance ($>100$ mm) wiring, the high-speed electrical signals may not be able to travel that far. Therefore, other technologies such as on-wafer repeaters~\cite{Han_BigChipChallenge_2023, Vaisband_CommunicationConsiderationsSilicon_2019, Chen_WaferscaleNetworkSwitches_2024} are necessary.
+
+\begin{figure}[tb]
+  \centering
+  \renewcommand\fbox{\fcolorbox{red}{white}}
+  \includegraphics[width=0.9\linewidth]{../figures/2024SC/all-to-all-on-wafer.pdf}
+  \caption{Wafer-level long-distance connectivity. All the edge IOs of each C-group are fanned out, and the long-distance wafer-level logical links are connected off-wafer physically. \label{chap08:fig:all-to-all-on-wafer}}
+\end{figure}
+
+Nevertheless, the switch-less Dragonfly is still practical without any physical on-wafer long-distance wires. because the inter-C-group interconnections do not require high-density on-wafer wiring. For a wafer with 9 C-groups (smaller C-groups do not require wafer-scale integration), there are only 36 inter-C-group wafer-level channels, which can be implemented off-wafer by standard packaging and interconnections. As shown in Figure~\ref{chap08:fig:all-to-all-on-wafer}, each C-group is manufactured as a single unit with high-density short-reach on-wafer wiring, but all edge IOs, no matter whether for on-wafer or off-wafer interconnection, are fanned out to off-wafer electrical/optical connectors~\cite{Wade_TeraPHYChipletTechnology_2020,Hsia_IntegratedOpticalInterconnect_2023,Kopp_SiliconPhotonicCircuits_2011}. Then, the long-distance wafer-level logical links are connected off-wafer physically by backplane or cables. For the system discussed in Section~\ref{chap08:sec:casestudy}, the total number of IO channels for a wafer is 192, and a practical layout of the C-group is presented in Figure~\ref{chap08:fig:layout}.
+
+% \deleted{As discussed, higher-radix topologies intra/inter-C-group may be used on the wafer. However, current wafer-level package has limited interconnect layers to support both the communication and power supply; therefore, ports may have to be led out and connected off-wafer. In the case of 2D-torus in the C-group, the numerous wraparound links are less likely to all cross high-performance chiplets because of the large region for power supply above chips. Therefore, the ports for wraparound links can be led out and connected off the wafer.}
+
+% \subsection{summary}
+% The most significant advantage of the switch-less Dragonfly is that it breaks through the switch bottleneck. First, the scale of the system is no longer limited by the switch radix. By combining chiplets into C-groups, the equivalent radix of a C-group can be more than a modern switch. Second, terminals do not consume external ports. Traditional switch-based Dragonfly consumes a quarter of the switch ports for terminal access. However, chiplets themselves in the chiplet-based Dragonfly are little switches. The more chiplets integrated, the more external ports a C-group has. Third, significant cost savings are realized on the switches. 
+
+\section{Interconnection and Routing Design}
+Routing is one of the core problems of interconnection networks. In traditional switch-based Dragonfly, the minimal path is unique, and all ports of a switch are equivalent and directly connected; thus, the routing is simple. Kim \textit{et al.} achieved deadlock-free minimal routing by two virtual channels (VCs) and non-minimal routing by three VCs~\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008}. However, in the switch-less Dragonfly, the switching functionality is realized by the distributed networks-on-chiplet; therefore, the ports of a C-group are non-equivalent, and channel dependencies among on-chip and off-chip networks can lead to potential deadlocks. Therefore, it is essential to illustrate the routing design of the entire network. In this section, a simple baseline routing algorithm is first introduced, and then methods are presented to reduce the number of virtual channels. Besides, the impact of intra-C-group networks is also discussed.
+
+\begin{figure}[tbh]
+  \centering
+  \includegraphics[width=0.98\linewidth]{../figures/2024SC/interconnection.pdf}
+  \caption{Intra/inter-C/W-group interconnection. (a) Each in-C-group node has a unique label, which is similar to the labeling method in Section~\ref{sec_interconnection_netowork_of_chiplets}; $k$ ports used for interconnection are also labeled. (b) C-groups are connected into multiple W-groups by local ports; The remaining ports are led out and re-labeled for global interconnection. (c) W-groups are fully connected. \label{chap08:fig:interconnection}}
+\end{figure}
+
+\subsection{Baseline Virtual-Channel-based Routing}
+The interconnection is shown in Figure~\ref{chap08:fig:interconnection}. In brief, the network is built in two steps: \textbf{1)} Label the port and fully connect C-groups into multiple W-groups. \textbf{2)} Relabel the remaining ports and fully connect all W-groups into a Dragonfly.
+
+\begin{algorithm}[b]
+  \begin{algorithmic}
+    \REQUIRE Source: $(W_s, C_s, n_s)$, \\ Destination: $(W_d, C_d, n_d)$;
+    \ENSURE Routing within C-group from node $n_i$ to $n_j$;
+    \vspace{2pt}
+    \STATE \textbf{Step 1:} {RWC($n_s$, $n_a$)}. $n_a \in C_s$ is the node that has the local channel to $C_b$, which has the global channel to $W_d$.
+    \vspace{2pt}
+    \STATE \textbf{Step 2:} Traverse the local channel from $n_a$ to $n_{b0} \in C_b$.
+    \vspace{2pt}
+    \STATE \textbf{Step 3:} {RWC($n_{b0}$, $n_{b1}$)}. $n_{b1} \in C_b$ is the node that has the global channel to $C_c \in W_d$.
+    \vspace{2pt}
+    \STATE \textbf{Step 4:} Traverse the global channel from $n_{b1}$ to $n_{c0} \in C_c$.
+    \vspace{2pt}
+    \STATE \textbf{Step 5:} {RWC($n_{c0}$, $n_{c1}$)}. $n_{c1} \in C_c$ is the node that has the local channel to $C_d \in W_d$.
+    \vspace{2pt}
+    \STATE \textbf{Step 6:} Traverse the local channel from $n_{c1}$ to $n_{d0} \in C_d$.
+    \vspace{2pt}
+    \STATE \textbf{Step 7:} {RWC($n_{d0}$, $n_{d}$)}.
+  \end{algorithmic}
+  \caption{\scshape Minimal routing in SW-less Dragonfly \label{alg:minimal}}
+\end{algorithm}
+
+As shown in Algorithm~\ref{alg:minimal}, the minimal routing algorithm in the switch-less Dragonfly from the source node $n_s$ of the source C-group $C_s$ of the source W-group $W_s$ to the destination node $n_d$ of the destination C-group $C_d$ of the destination W-group $W_d$ is accomplished in seven steps: three inter-C-group routing steps and four intra-C-group routing steps. The non-minimal routing is similar to the minimal routing but with two additional inter-C-group steps and two additional intra-C-group steps at an intermediate W-group. Deadlock-free routing within a 2D-mesh-based C-group can simply follow existing algorithms (\textit{e.g.}, dimension-order and negative-first routing). Virtual channels (VCs) are used to avoid cross-C-group deadlocks in the switch-less Dragonfly. There are four kinds of situations for a minimal-routed packet in the C-group: source C-group $C_s$, intermediate C-group $C_b$, $C_c$, and destination C-group $C_d$. Therefore, only four VCs are required to avoid any cross-C-group deadlock by increasing the VC at each C-group. Similarly, six VCs can be used for deadlock-free non-minimal routing.
+
+
+\subsection{VC Number Reduction}
+When the VC number is limited, we also present methods to reduce the VC number. The basic idea is to achieve up*/down* deadlock-free routing~\cite{Schroeder_AutonetHighspeedSelfconfiguring_1991} in a larger subnetwork beyond a C-group.
+If there is a valid up-first path for any source-destination pair within a W-group, the two VCs of the two C-groups can be merged into one VC. The up*/down* routing relies on proper labeling and interconnection. Definition~\ref{def:up-down} gives the type of all channels and ports. A feasible labeling method is stated in Property~\ref{prop:1}, which makes all ports consistently ordered and higher than the cores. The corresponding interconnection method is stated in Property~\ref{prop:2}, which organizes the different types of ports consistently from low to high: local ports to lower C-groups, global ports, and local ports to higher C-groups.
+
+\begin{definition}
+  A physical or virtual channel from node $(w_i, c_i, n_i)$ to node $(w_j, c_j, n_j)$ is \textit{up} if:
+  \begin{itemize}
+    \item $w_i < w_j$, \textbf{or}
+    \item $w_i = w_j, c_i < c_j$, \textbf{or}
+    \item $w_i = w_j, c_i = c_j, n_i < n_j$;
+  \end{itemize}
+  otherwise, the channel is \textit{down}. A port $P_s$ of a C-group or W-group is \textit{up} if the channel from $P_s$ to $P_d$ is \textit{up}; otherwise, the port is \textit{down}.
+  \label{def:up-down}
+\end{definition}
+
+\begin{property}
+  \label{prop:1}
+  For the intra-C-group network,
+  \begin{itemize}
+    \item[$\bf c1.$] $\forall$ port-core pair $(p, n)$, $\exists$ a down-only path from $p$ to $n$ (\textit{i.e.} an up-only path from $n$ to $p$).
+    \item[$\bf c2.$] $\forall$ port-port pair with label $(i, j), i < j$, $\exists$ an up-only path from $i$ to $j$ (\textit{i.e.} a down-only path from $j$ to $i$), \textbf{and}
+  \end{itemize}
+\end{property}
+
+\begin{property}
+  As shown in Figure~\ref{chap08:fig:interconnection}(b), $\forall$ global port of the C-group, all \textit{down} local ports are at lower position, and all \textit{up} local ports are at higher position.
+  \label{prop:2}
+\end{property}
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.9\linewidth]{../figures/2024SC/routing.pdf}
+  \caption{Minimal/non-minimal routing and virtual channel assignment in the switch-less Dragonfly. S is the source node, and D1/D2 are the destination nodes. LP refers to local port, and GP refers to global port. \label{chap08:fig:routing}}
+\end{figure}
+
+As a result, any packet at the destination W-group has a valid up-first path to the destination: \textbf{1)} If the packet is at the core, it can reach the local port through an up-only path by Property~\ref{prop:1}($\bf c1$); and no matter the next local inter-C-group hop is \textit{up} or \textit{down}, it can then reach the destination core through a \textit{down-only} path. \textbf{2)} As shown in Figure~\ref{chap08:fig:routing}, if the packet reaches the port node through a global channel, according to Property~\ref{prop:2} and Property~\ref{prop:1}($\bf c2$), there is a \textit{down-only} or \textit{up-only} path to the local port of the destination C-group; and then, according to Property~\ref{prop:1}($\bf c1$), there is a \textit{down-only} path to the destination core. Therefore, one VC can be reduced for minimal/non-minimal routing at the destination W-group.
+
+Similarly, any packet that reaches the intermediate W-group by non-minimal routing has a consistent path from the entering global port to the leaving global port: According to Property~\ref{prop:2}, if the leaving C-group is higher than the entering C-group, the path is \textit{up-only}; otherwise, the path is \textit{down-only}. As shown in Figure~\ref{chap08:fig:routing}, if only allowing non-minimal routing to a lower W-group from which there exists an \textit{up-only} path to the destination W-group, then the routing among the intermediate and destination W-group can be merged with unified up*/down* routing. If allowing non-minimal routing to other W-groups, one more VC is still required for the intermediate W-group.
+
+In summary, the minimal routing requires three VCs: VC-0 and VC-1 for the source and intermediate C-groups of the source W-group, and VC-2 for the destination W-group. No more VC is required if only misrouting to a valid lower W-group; otherwise, one more VC-3 is required at the intermediate W-group. 
+
+% An interconnection algorithm gives which port of one C-group is connected to which port of another.
+% \begin{algorithm}[htb]
+%   \begin{algorithmic}[1]
+%     \REQUIRE The number of ports $h$ and the number of groups $n$;
+%     \FOR{$i = 0$ to $n-2$}
+%     \STATE Connect $P_{h-1} \in G_i$ with $P_0 \in G_{i+1}$;
+%     \ENDFOR
+%     \FOR{$i = 0$ to $n-3$}
+%     \FOR{$j = i+2$ to $n-1$}
+%     \STATE Connect $P_{h-(j-i)} \in G_i$ with $P_{i+1} \in G_j$, where $P_{h-(j-i)}$ is the \textbf{highest available} port of $G_i$, and \\ $P_{i+1}$ is the \textbf{lowest available} port of $G_j$.
+%     \ENDFOR
+%     \ENDFOR
+%   \end{algorithmic}
+%   \caption{\scshape Interconnection Scheme \label{alg:interconnection}}
+% \end{algorithm}
+% As shown in Figure~\ref{chap08:fig:interconnection}, each node (on-chip router) has a unique coordinate $(w, c, n)$, where $s$ is the W-group number, $c$ is the C-group number in each W-group, and $n$ is the node number in each C-group. Besides the nodes, all interconnection ports of the group also have labels. $k$ ports of a C-group used for interconnection are labeled from $0$ to $k-1$. After the local connection (intra-W-group) consumes $ab-1$ ports, the remaining $h = k-(ab-1)$ global ports are sequentially re-labeled from $ih$ to $(i+1)h - 1, i=0 \text{ to } g-1$.
+
+
+
+% The interconnection method is described in Algorithm~\ref{alg:interconnection}. 
+% In brief, the interconnection method is organized in two steps: 1) Connect each group's highest port to the lowest port of the upper group. 2) From the group $0$ to group $n-3$, sequentially connect the highest available port to the lowest available port of each unconnected group. 
+
+% As shown in Figure~\ref{chap08:fig:interconnection}(b)(c), firstly, all C-groups in each W-group are connected according to Algorithm~\ref{alg:interconnection}. The remaining C-group ports in each W-group are re-labeled as global ports and also connected by the Algorithm~\ref{alg:interconnection}. In this way, the wafer-based switch-less Dragonfly is constructed, which has good properties and facilitates routing.
+
+% Based on the interconnection, the type of all channels and ports can be determined by Definition~\ref{def:minus-plus}. As a result, we also give two properties that are straightforward and helpful for illustrating routing. Property~\ref{prop:1} ensures consistent directionality when switching between local and global channels. Property~\ref{prop:2} ensures that unsafe packets cannot form a dependency cycle within the W-group.
+% For the Property~\ref{prop:1}, when a packet reaches a C-group through a global channel, if it's going to another higher (or lower) C-group through the local channel, it will be forwarded to a higher (or lower) port. Similarly, when a packet reaches a C-group through a \textit{minus} (or \textit{plus}) local channel, if it's going to another W-group by the global channel, it will be forwarded to a lower (or higher) port. These properties are straightforward and helpful for illustrating routing.
+
+
+
+% \begin{property}
+%   By the above interconnection, $\forall$ global port of a C-group, all \textit{minus} local ports are at lower ports, and all \textit{plus} local ports are at higher ports.
+%   \label{prop:1}
+% \end{property}
+
+% \begin{property}
+%   The \textit{plus} local port $P_a (a<h-1)$ of C-group $C_i$ is connected to the \textit{minus} local port $P_{i+1}$ of $C_{h+i-a}$; The \textit{minus} local port $P_b (b>0)$ of C-group $C_j$ is connected to the \textit{plus} local port $P_{h-j+b-1}$ of $C_{b-1}$.
+%   \label{prop:2}
+% \end{property}
+
+
+% \subsection{Routing Algorithm}
+% Examples of routing for source-destination pairs are shown in Figure~\ref{chap08:fig:routing}. For the minimal routing algorithm stated in Algorithm~\ref{alg:minimal} with MFR-based safe/unsafe flow-control, we prove that it is deadlock-free in Theorem~\ref{theorem}.
+
+% \begin{lemma}
+%   For the traditional switch-based (each C-group is a switch) Dragonfly topology with labels and interconnections described in Figure~\ref{chap08:fig:interconnection}(b)(c), the minimal fully-adaptive routing with MFR-based safe/unsafe flow-control is deadlock-free.
+% \end{lemma}
+
+% \begin{proof}
+%   All packets in global \textit{minus} channels are \textit{safe} because no matter whether the next hop is plus or minus, it conforms to the minus-first rule. Without global minus channels, the remaining channels are acyclic. According to Lemma~\ref{lemma:flow-control}, the routing algorithm is deadlock-free.
+% \end{proof}
+
+% \begin{theorem}
+%   For the chiplet-based Dragonfly topology with labels and interconnections described in Section~\ref{chap08:sec:interconnection}, the minimal routing algorithm with MFR-based safe/unsafe flow-control is deadlock-free if:
+%   \begin{itemize}
+%     \item[$\bf c1.$] For the C-group, $\forall$ port-port pair with label $(i, j), i < j$, $\exists$ a plus-only path from $i$ to $j$ (\textit{i.e.} a minus-only path from $j$ to $i$), \textbf{and}
+%     \item[$\bf c2.$] $\forall$ port-core pair $(p, n)$, $\exists$ a plus-only path from $p$ to $n$ (\textit{i.e.} a minus-only path from $n$ to $i$).
+%   \end{itemize}
+%   \label{theorem}
+% \end{theorem}
+% \begin{proof}
+% \textbf{(1)} Deadlock-free routing within the C-group is guaranteed by the Condition $\bf c2$ and MFR (\textit{e.g.} negative-first routing on 2D-mesh).
+% \textbf{(1)} According to Condition $\bf c2$, any packet in the local channel of the destination C-group is \textit{safe} because there is a \textit{plus-only} path to the destination. 
+% \textbf{(2)} Any packet in a \textit{minus} global channel is \textit{safe} because $\forall$ \textit{minus} global channel $p$ and destination node $d$ in the same W-group, according to Property~\ref{prop:1} and Condition $\bf c1$, there is a \textit{minus-only} or \textit{plus-only} path from $p$ to the local port $q$ of the destination C-group; and then, according to Condition $\bf c2$, there is a \textit{plus-only} path from $q$ to $d$. Therefore, there is no unsafe packet dependency circle across W-groups. \textbf{(3)} For packets in the local channel of the source W-group, if the destinations are not in the same W-group, packets can be \textit{unsafe} (\textit{e.g.}, as shown in Figure~\ref{chap08:fig:routing}, a packet from $X$ to $Y$ is \textit{unsafe} at the \textit{plus} channel from $W_{j,C_0}$ to $W_{j,C_1}$ since it must turn to a \textit{minus} global channel). However, it can be proven that unsafe packet dependency circles can not form within the W-group. Without loss of generality, we began with an \textit{unsafe} packet transmitted from a \textit{plus} local port $P_a$ of C-group $C_i$. According to Property~\ref{prop:2}, the corresponding receiving port is $P_{i+1}$ of $C_{h-i-a}$. According to Property~\ref{prop:1}, the target global channel is at a higher port; therefore, the \textit{unsafe} dependency chain advances to a higher \textit{minus} port $P_{i+1+x}, x>0$. When the dependency chain advances through a certain \textit{minus} channel, it reaches the port $P_{a+x}$ of C-group $C_{i+x}$ according to Property~\ref{prop:2}. Similarly, the dependency chain begins from a \textit{minus} local port $P_b$ of C-group $C_j$ advances to port $P_{h-j+b-1-y}, y>0$ of C-group $C_{b-1}$ and reaches port $P_b$ of C-group $C_{j+y}$. That is to say, the \textit{unsafe} dependency chain is getting further away from the starting channel, thus making it impossible to form a circle. Therefore, there is no unsafe packet dependency circle within W-groups. Combining \textbf{(1)(2)(3)} and Lemma~\ref{lemma:flow-control}, the routing algorithm with MFR-based safe/unsafe flow-control is deadlock-free.
+% Without loss of generality, we began with an \textit{unsafe} packet in a \textit{plus} channel from C-group $C_i$ to $C_j$ (\textit{i.e.} at the \textit{minus} port of $C_j$). Since the destination is at another W-group, the packet is going to a global channel of $C_j$.  According to Property~\ref{prop:1}, the target global channel is at a higher port. Before reaching ports of global channels, all ports are \textit{minus} ports towards other C-groups. When the dependency chain advances to a certain \textit{minus} local channel (port) and reaches C-group $C_k$, according to Property~\ref{prop:2}, $C_k$ is lower than $C_i$. Similarly, when the dependency chain advances again to a \textit{plus} channel (port) of $C_k$ and reaches C-group $C_l$, $C_l$ is higher than $C_j$. The \textit{unsafe} dependency chain is getting further away from the starting channel, thus making it impossible to form a circle. Therefore, there is no unsafe packet dependency circle within W-groups. Combining \textbf{(1)(2)(3)} and Lemma~\ref{lemma:flow-control}, the routing algorithm is deadlock-free.
+% \end{proof}
+
+% As for misrouting, if the non-minimal path meets the minus-first rule, the \textit{safe} misrouting packets can be freely sent; otherwise, the \textit{unsafe} misrouting packets are sent with special caution (\textit{i.e.} the flow-control Algorithm~\ref{alg:flow-control}) or wait for the minimal path to be available. As the example shown in Figure~\ref{chap08:fig:routing}, the non-minimal routing path from $S$ to $D$ is \textit{safe} along the way ($W_{i,C_1} \stackrel{\text{minus}}{\longrightarrow} W_{k,C_0} \stackrel{\text{plus}}{\longrightarrow} W_{j,C_n}$). As described in Corollary~\ref{corollary:non-minimal}, packets are \textit{safe} to misroute to some intermediate W-groups. Remaining \textit{unsafe} paths can also be utilized because once a packet enters into the intermediate W-group, deadlock-free is guaranteed by the minimal routing.
+% More discussion and details about the non-minimal routing are beyond the scope of this chapter and are not covered due to the page limit.
+
+% \begin{corollary}
+%   A packet from W-group $W_i$ to $W_j$ can be sent to an intermediate W-group $W_k$ by non-minimal routing algorithm as \textit{safe} packet if:
+%   \begin{itemize}
+%     \item It is \textit{safe} by the minimal routing algorithm at $W_k$, \textbf{and}
+%     \item $k<i$, and the global channel to $W_k$ is at the current or a lower C-group, \textbf{or}
+%     \item $i<k<j$, and the global channel to $W_k$ is at the current or a higher C-group.
+%   \end{itemize}
+%   \label{corollary:non-minimal}
+% \end{corollary}
+
+% The choice between using minimal or non-minimal routing depends on the communication traffic pattern of the application. Minimal routing suits traffic patterns where each node communicates with numerous other nodes in other groups (\textit{e.g.} uniform traffic pattern)~\cite{Rajamony_PERCSIBMPOWER7IH_2011, Kim_TechnologyDrivenHighlyScalableDragonfly_2008}. However, for adversarial traffic patterns, \textit{e.g.} each W-group $W_i$ sends traffic to $W_{i+1}$, the minimal routing algorithm will cause congestion at the inter-W-group links. In this case, non-minimal routing is necessary to offer more extra paths (bandwidth). There are a few ways to select the path from multiple available routes. First, the software can specify the intermediate W-group and let the hardware determine the route path by minimal routing algorithm~\cite{Rajamony_PERCSIBMPOWER7IH_2011}. Second, the hardware gives a specific minimal or non-minimal route according to the current state of the network at the source. Besides, the minimal and non-minimal routing give candidate channels at each router, and each packet selects one of the channels according to the real-time congestion information.
+
+\subsection{Intra-C-group Networks}
+\label{chap08:sec:noc}
+As stated in Property~\ref{prop:1}, two conditions for the intra-C-group network are required for up*/down* routing. Various intra-C-group network architectures can meet the conditions by trading off performance and complexity.
+
+The IO-router-based NoCs shown in Figure~\ref{chap08:fig:noc}(a) are adopted by many chips, including the \textit{EPYC}~\cite{Troester_AMDNextGeneration_2023,Naffziger_22AMDChiplet_2020}, TofuD~\cite{Ajima_TofuInterconnect_2018}, \textit{H100}~\cite{Choquette_NVIDIAHopperH100_2023}, and \textit{TPU}~\cite{Norrie_DesignProcessGoogles_2021}. The advantages of the IO-router-based NoCs are the isolation of on/off-chip traffic and the simplification of intra-C-group interconnection.  However, the IO router can become the bottleneck, and the chip-to-chip bandwidth does not scale with the chip scale. Figure~\ref{chap08:fig:noc}(a) shows a valid intra-C-group interconnection and labeling method for IO-router-based chiplets by four physical channels.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.98\linewidth]{../figures/2024SC/noc.pdf}
+  \caption{Network-in-C-group architectures and the labeling. (a) IO-router-based: all interconnection ports are connected to one on-chip router;  (b)(c) Mesh-based: interconnection ports are distributed at the edge of the NoC. \label{chap08:fig:noc}}
+\end{figure}
+
+The mesh-based NoCs can provide a more scalable injection bandwidth. Many recent multi-chip systems, including the \textit{Sapphire Rapids}~\cite{Nassif_SapphireRapidsNextGeneration_2022}, \textit{Wormhole}~\cite{Ignjatovic_WormholeAITraining_2022}, and \textit{DOJO}~\cite{Talpes_MicroarchitectureDOJOTeslas_2023}, adopt such an architecture. Figure~\ref{chap08:fig:noc}(b) shows a labeling method consistent with the on-chip routing, and Figure~\ref{chap08:fig:noc}(c) shows another novel polar-system-based labeling method. Both two labeling methods meet the condition in Property~\ref{prop:1} but are different in design detail. For example, router-less rings can be implemented on the polar-system-labeled NoCs to reduce the complexity and detour~\cite{Liu_IMRHighPerformanceLowCost_2016,Alazemi_RouterlessNetworkonChip_2018}. A potential issue is the asymmetry of any such labeling method; however, since the labeling is software-based (the physical 2D-mesh is symmetric), it is possible to change the labeling method or mapping policy for different applications. More details are beyond the scope of this chapter.
+
+\section{Evaluation \& Discussion}
+\begin{figure}[tbh]
+  \centering
+  \includegraphics[width=0.9\linewidth]{../figures/2024SC/layout.pdf}
+  \caption{Layout of PHYs, chiplets, and IO connectors of a C-group.   \label{chap08:fig:layout}}
+\end{figure}
+\subsection{Methodology}
+\subsubsection{Layout} \label{chap08:sec:layout} To evaluate the feasibility of the implementation, the placement and routing of a C-group are implemented on the wafer. The bump pitch and line space are assumed to be $55$um and $5$um on the wafer~\cite{DouglasYu_TSMCPackagingTechnologies_2021}. As shown in Figure~\ref{chap08:fig:layout}, the layout includes the placement of PHYs, chiplets, and IO connectors. Assuming the C-group consists of $16$ chiplets, each chiplet has $6$ physical channels at each edge. In the layout, $128$ lanes of UCIe (two $64\times$ PHY~\cite{_UniversalChipletInterconnect_2023}) are adopted at each on-wafer channel, achieving $4096$ Gb/s/port intra-C-group short-reach bandwidth. $8$ lanes of 112G SerDes (differential signal) are adopted at each off-C-group channel, achieving $896$ Gb/s/port long-reach bandwidth~\cite{Synopsys_DesignWareDietoDie112G_2021, _CommonElectricalCEI_2024}.
+As a result, a C-group of $60mm\times 60mm$ size leads out 1536 pairs of differential ports ($\sim 5500$ IOs including the power and ground) in total. The total bisection and aggregation bandwidth of the on-wafer C-group is $12$TB/s and $20.9$TB/s, much larger than the highest-end switches. The layout also suggests that it is feasible to achieve multiples of bandwidth on-wafer with advanced packaging and interface technologies.
+\begin{table}[ht]
+  \centering
+  \caption{Default Parameters}
+  \label{chap08:tab:parameter}
+  \begin{tabular}{cc}
+    \toprule
+    \textbf{Parameter}     & \textbf{Value}                 \\
+    \midrule
+    Packet Length          & $4$ flits                      \\
+    Input Buffer Size      & $32$ flits                     \\
+    Base Link Bandwidth    & $1$ flit/cycle                 \\
+    Short-Reach Link Delay & $1$ cycle                      \\
+    Long-Reach Link Delay  & $8$ cycles                     \\
+    Simulation Time        & $10000$ cycles     \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+\subsubsection{Simulator} CNSim is used to evaluate the performance. The default parameters used in simulations are shown in Table~\ref{chap08:tab:parameter}. The long-reach link delay is not set at the real value (hundreds of cycles), otherwise, the switch-less Dragonfly will always have a much lower latency due to the shorter diameter (3 \textit{v.s.} 5 hops).
+
+\subsubsection{Workloads}
+The evaluations use three kinds of network workloads: \textbf{(a) Unicast traffic patterns.} The \textit{uniform} and other permutation patterns~\cite{Dally_PrinciplesPracticesInterconnection_2004}, including bit-reverse, bit-shuffle, and bit-transpose, are evaluated. \textbf{(b) Adversarial traffic patterns.} The \textit{hotspot} traffic pattern is evaluated, which conducts communications within four of all W-groups, and the \textit{worst-case (WC)} traffic pattern, where each node in W-group $W_i$ sends traffic to a random node in W-group $W_{i+1}$~\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008}. \textbf{(c) Collective traffic patterns.} The \textit{ring-based AllReduce} traffic pattern is also evaluated, where each chip (process) $i$ sends the $1/N$ segment to chip $(i+1)$ mod $N$ or sends two $1/2N$ segments to $(i-1)$ mod $N$ and $(i+1)$ mod $N$~\cite{Feng_OptimizedMPICollective_2022, Hoefler_HammingMeshNetworkTopology_2022}.
+% \textbf{(c) Real HPC workload.} The HPC traces collected from the program for the Compressible Navier-Stokes (CNS) equations running on Cray XE06 (Hopper) at NERSC are also evaluated~\cite{_CharacterizationDOEMiniapps_, Avin_ComplexityTrafficTraces_2020}.
+
+\subsubsection{Experiment Setup} The baseline is the standard switch-based Dragonfly. A switch's terminal, local, and global ports are configured at 4:7:5 for radix-16 and 8:15:9 for radix-32. As a result, the total (group, chip) numbers are (41, 1312) for radix-16 and (145, 18560) for radix-32. For the switch-less Dragonfly, local and global ports are configured as the same number but no terminal ports. All nodes in a C-group of the switch-less Dragonfly are connected by a 2D-mesh with low-latency on-wafer links. The links between C-groups and W-groups are configured the same as the switch-based Dragonfly. As discussed in Section~\ref{chap08:sec:throughput}, the 2D-mesh with uniform link bandwidth has limited bisection bandwidth compared with a non-blocking switch. Therefore, the configuration of higher intra-C-group bandwidth (labeled as ``2B/4B'' for $2\times$/$4\times$ intra-C-group bandwidth) is also evaluated. It is also important to note that all the switches are modeled as single ideal high-radix routers; however, they are actually also implemented by distributed networks-on-chip~\cite{DeSensi_InDepthAnalysisSlingshot_2020,Ahn_ScalableHighradixRouter_2013}. The performance/energy overhead of the high-radix switches is underestimated in this chapter.
+
+\subsection{Performance}
+\subsubsection{Local Throughput} Rather than connecting to the switch by a single physical channel, the switch-less Dragonfly adopts a 2D-mesh within the C-group. As a result, the theoretical local throughput of the switch-less Dragonfly is more than $1$ flit/cycle/chip. The architecture is evaluated by adopting a 2D-mesh of $2 \times 2$ chiplets with $2 \times 2$ on-chiplet network in the C-group ($4 \times 4$ on-chip routers in total). The C-group has $12$ external ports ($7$ for local and $5$ for global, equivalent to the radix-16 switch); therefore, each W-group has $8$ fully-connected C-groups (32 chips in total). As shown in Figure~\ref{figure:local-throughput}(a), the saturation injection rate intra-C-group under uniform and bit-reverse traffic reaches $3.0$ and $2.0$ flits/cycle/chip, which is over $3 \times$ more than connecting to a switch. As for the intra-W-group throughput, although a traditional Dragonfly switch has $2 \times$ local ports than the terminal ports, the injection rate is still bounded by the single injection channel connecting to the switch. As shown in Figure~\ref{figure:local-throughput}(c-f), except for the bit-shuffle pattern, the saturation injection rate intra-W-group can be $1.2-2\times$ larger. With double on-wafer bandwidth, the performance can be even better. However, the performance is not improved if the bottleneck is the inter-C-group links rather than the intra-C-group links (\textit{e.g.} bit-shuffle pattern shown in Figure~\ref{figure:local-throughput}(e)). In summary, the switch-less Dragonfly achieves better local throughput without doubling the intra-C-group bandwidth.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2024SC/local-throughput.pdf}
+  \caption{(a-b) Intra-C-group (intra-switch) and (c-f) local (intra-Dragonfly-group) performance under different traffic patterns. \label{figure:local-throughput}}
+\end{figure}
+
+\subsubsection{Global Throughput} The global performance of the same radix-16 network is evaluated. The whole network has 1312 chips (5248 on-chip nodes) in total. As shown in Figure~\ref{figure:global-throughput}(a), if the intra-C-group link bandwidth is the same as the local/global link bandwidth, the overall performance under uniform traffic for the switch-less Dragonfly is slightly worse than the switch-based Dragonfly due to the limited bisection bandwidth of the 2D-mesh-in-C-group. If the intra-C-group link bandwidth is doubled, the bottleneck on the bisection bandwidth is eliminated; thus, the switchless Dragonfly performs much better than the traditional Dragonfly. For the bit-reverse traffic pattern shown in Figure~\ref{figure:global-throughput}(b), the result is similar. For small-scale networks, the switch-less Dragonfly maintains the global performance with uniform bandwidth and achieves better performance with higher intra-C-group bandwidth. 
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024SC/global-troughput.pdf}
+  \caption{Global performance under the uniform and bit-reverse traffic patterns.   \label{figure:global-throughput}}
+\end{figure}
+
+\subsubsection{Scalability} The scalability of the switch-less Dragonfly is also evaluated by simulating large-scale networks. It is important to note that the absolute value of the latency of the switch-based Dragonfly is greatly underestimated for easier comparison. A large-scale system of 18560 chips (radix-32) is built. As shown in Figure~\ref{figure:large-scale}(a), the local performance of the large-scale switch-less Dragonfly is not as good as small-scale networks without doubling intra-C-group bandwidth. As shown in Figure~\ref{figure:large-scale}(b), the global performance of the uniform-bandwidth switch-less Dragonfly is severely constrained by the limited bisection bandwidth of the 2D-mesh-in-C-group. That is intuitive and inevitable since thousands of powerful switches with non-blocking switching capability are eliminated. Higher intra-C-group bandwidth is critical for removing the bottlenecks for extreme global traffic. As shown in Figure~\ref{figure:large-scale}(b), the global throughput can be maintained or even improved after increasing the intra-C-group bandwidth. As we have analyzed and validated in Section~\ref{chap08:sec:throughput}, \ref{chap08:sec:cost}, and \ref{chap08:sec:layout}, it is feasible and affordable to achieve higher bandwidth on the wafer; or from another perspective, off-wafer bandwidth is reduced compared to the on-wafer bandwidth, just as the DOJO~\cite{Talpes_DOJOMicroarchitectureTeslas_2022}.
+
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024SC/large-scale.pdf}
+  \caption{Performance scalability under the uniform traffic. \label{figure:large-scale}}
+\end{figure}
+
+\subsubsection{Misrouting} The minimal routing on the Dragonfly topology is insufficient for some unbalanced traffic; thus, non-minimal routing is required. The non-minimal routing algorithm is evaluated under the hotspot and worst-case traffic patterns. As shown in Figure~\ref{figure:misrouting}, the performance by minimal routing is poor because only 3/40 global links are used for the hotspot traffic, and only 1/40 global links are used for the worst-case traffic. Therefore, distributing traffic to more global channels by non-minimal routing can reduce congestion. The simulation results show that the saturation injection rate by non-minimal routing is tens of times larger than the minimal routing. As shown in Figure~\ref{figure:misrouting}(a), increasing the intra-C-group bandwidth can significantly improve the performance of the hotspot pattern because traffic congestion is also within the C-group. 
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024SC/misrouting.pdf}
+  \caption{Performance of the minimal and non-minimal routing under the hotspot and wost-case traffic patterns.\label{figure:misrouting}}
+\end{figure}
+
+% \begin{figure}[tb]
+%   \centering
+%   \includegraphics[width=0.9\linewidth]{../figures/2024SC/hotspot.pdf}
+%   \caption{Link utilization of the intra-C-group links. (a) Intra-C-group uniform traffic. (b) Global traffic goes across the C-group. (c) Global traffic goes along the edge of the C-group. \label{figure:hotspot}}
+% \end{figure}
+
+% \subsubsection{Traffic Heat Map}
+% To better analyze the competition on intra-C-group links, we separately evaluate the link utilization of intra-C-group and inter-C-group traffic on a $5\times 5$ 2D-mesh. As shown in Figure~\ref{figure:hotspot}(a), the busiest links for intra-C-group uniform traffic are at the center of the 2D-mesh, and the corner links are less active. As for the inter-C-group traffic, as shown in Figure~\ref{figure:hotspot}(b), if it is allowed to go across the inside of the C-group, the hotspots are at both the center and corner. The corner congestion is because nodes in the corner can have two external links. As shown in Figure~\ref{figure:hotspot}(c), If we restrict the inter-C-group traffic to go along the edge of the C-group (as mentioned in Section~\ref{chap08:sec:noc}), the hotspots are at the corners and edges, complementary with the intra-C-group traffic. As a result, although delivering traffic along the edge of the C-group is non-minimal-routed, the performance is little affected.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024SC/allreduce-throughput.pdf}
+  \caption{Performance of ring-based AllReduce algorithm within C-group and W-group. \label{chap08:fig:allreduce-throughput}}
+\end{figure}
+
+\subsubsection{AllReduce Traffic}
+The AllReduce traffic based on the unidirectional and bidirectional rings is also evaluated. As shown in Figure~\ref{chap08:fig:allreduce-throughput}(a), the saturation injection rate of the switch-based Dragonfly reaches $1$ flit/cycle/chip for intra-C-group AllReduce. The bidirectional ring does not improve the performance but introduces congestion at the ejection port and leads to higher latency. Meanwhile, since there are four injection/ejection ports per chip in the switch-less Dragonfly, the saturation throughput can reach $2$ and $4$ flits/cycle/chip through the unidirectional and bidirectional rings. If considering the on-wafer bandwidth can be multiple times more, the expected performance can be even higher. As shown in Figure~\ref{chap08:fig:allreduce-throughput}(b), the performance of the intra-W-group AllReduce is bounded by the inter-C-group links. Without bidirectional rings, both the switch-based and switch-less Dragonfly reach the same throughput ($1$ flit/cycle/chip). With bidirectional rings, the switch-less Dragonfly can achieve a higher throughput of $1.3$ flits/cycle/chip, but still lower than the theoretical value due to the competition on the intra-C-group networks. By doubling the intra-C-group bandwidth, the intra-C-group bandwidth bottleneck is eliminated, thus the performance of inter-C-group AllReduce can reach $2$ flits/cycle/chip, twice that of the switch-based Dragonfly.
+
+% \subsubsection{Real Workload}
+% The HPC traces have mixed communication patterns, and the traffic is unevenly distributed. As a result, the network saturates quickly. As shown in Figure~\ref{figure:real-workloads}(b), the performance of the switch-based Dragonfly is poor due to the large proportion of local traffic. The switch-less Dragonfly performs better but is bounded by the competition on the inter-W-group links. The non-minimal routing algorithm helps alleviate congestion, thus improving the performance by more than $2\times$.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024SC/energy.pdf}
+  \caption{Average energy consumption per data transmission of minimal/non-minimal routing for small-scale and large-scale Dragonfly. \label{figure:energy}}
+\end{figure}
+
+\subsection{Power Consumption}
+\label{chap08:sec:energy-evaluation}
+Since the switching functionality is achieved by the intra-C-group network with numerous short-reach hops, it is not clear how the power consumption is affected. Considering modern switches have powerful software features, the power consumption is evaluated based on the energy per physical channel rather than directly comparing the chip power. As shown in Table~{\ref{chap08:tab:hop}}, the energy consumption of $H_l / H_g$, $H_{sr}$, and $H_\text{on-chip}$ is estimated at 20, 2, and 0.1 pj/bit, respectively. For simplicity, it is assumed that an intra-C-group hop takes 1pj/bit on average. Uniform traffic is performed on topologies of different scales, and the trace of each packet is collected. As shown in Figure~{\ref{figure:energy}}, the average energy consumption per data transmission is calculated based on the average hop count. For the small-scale Dragonfly, the energy overhead on the 4$\times$4 2D-mesh-on-wafer is small compared with the energy reduction from eliminating switches. For large-scale Dragonfly, since the diameter of 2D-mesh-on-wafer is larger, the energy overhead can be significant, especially for non-minimal routing. However, high-radix switches are also based on NoCs~\cite{DeSensi_InDepthAnalysisSlingshot_2020,Ahn_ScalableHighradixRouter_2013}, which also introduce extra energy consumption. In conclusion, eliminating switches can reduce the total energy consumption for both small/large-scale networks and minimal/non-minimal routing.
+
+
+\section{Summary}
+Wafer-scale integration provides high-density, low-latency, and high-bandwidth connectivity among tens of chips, thus promising to support direct high-radix networks without high-radix switches. In this chapter, a scalable wafer-based interconnection architecture is proposed for large-scale supercomputers. By utilizing distributed high-bandwidth networks-on-chip-on-wafer, costly high-radix switches of the Dragonfly topology are eliminated while increasing local throughput and maintaining global throughput. We also introduce baseline and improved deadlock-free minimal/non-minimal routing algorithms with only one additional virtual channel against traditional Dragonfly. Discussion and evaluations show that the switch-less Dragonfly is implementable, cost-effective, high-performance and scalable. The proposed wafer-based switch-less approach can be applied to other switch-based direct topologies and is promising to power future large-scale supercomputers.
+

@@ -1,0 +1,454 @@
+% !TeX root = ../thesis.tex
+
+\chapter{Methodology for Designing Efficient Chiplet Networks}
+\label{chap04-scalable}
+As shown in Figure~\ref{chap04:fig:chiplet}, with the increasing progress of advanced packaging and high-speed wireline technologies, multiple chiplets can be interconnected at very high wiring density and communication bandwidth~\cite{Synopsys_DesignWareDietoDie112G_2021, Synopsys_DesignWareDietoDie112G_2021, Huang_WaferLevelSystem_2021, Shin-HuaChao_FineLineSpace_2016}. Many influential
+ works from academia and industry have adopted the multi-chiplet architecture that is believed to provide higher performance and scalability\cite{Naffziger_PioneeringChipletTechnology_2021,Naffziger_22AMDChiplet_2020, Gomes_PonteVecchioMultiTile_2022, Shao_SimbaScalingDeepLearning_2019,Zaruba_Manticore4096CoreRISCV_2021,Zimmer_032128TOPSScalable_2020, Chang_DOJOSuperComputeSystem_2022, Talpes_DOJOMicroarchitectureTeslas_2022, Lie_CerebrasArchitectureDeep_2022, Lauterbach_PathSuccessfulWaferScale_2021, Cerebras_WaferScaleDeepLearning_2019, Lie_MultiMillionCoreMultiWafer_2021}. However, the interconnection network designs of these systems remain primitive and benefit little from the chiplet architecture. They rarely use long connection links or topologies with smaller diameters. At the same time, many network designs can only be adapted to a specific system. Building chiplet-based interconnection networks still faces many challenges.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.95\linewidth]{../figures/2023HPCA/chiplet.pdf}
+  \caption{Multi-chiplet system. Besides the on-die wiring, the on-RDL, on-silicon, on-substrate, and off-package wiring resources can support more complex interconnections. \label{chap04:fig:chiplet}}
+\end{figure}
+
+One challenge is building systems at different scales with the same chiplet. Chiplet reuse among different systems is one of the attractive features of chiplet architecture~\cite{Stow_CostAnalysisCostdriven_2016}. As presented in Chapter~\ref{chap03:chipletactuary}, if a chiplet can be used to build multiple systems, significant design cost and iteration time will be saved. 2D-mesh topology is widely used in on-chip networks because it is implementation-friendly\cite{BedfordTaylor_ScalarOperandNetworks_2003,Gratz_ImplementationEvaluationOnChip_2006,Vangal_80Tile128TFLOPSNetworkonChip_2007,Tilera_TileProcessorArchitecture_2007,Vaidyanathan_IntroducingParallelDistributed_2015}. However, for large systems with thousands of cores, such as the wafer-level system~\cite{Chang_DOJOSuperComputeSystem_2022, Talpes_DOJOMicroarchitectureTeslas_2022, Lie_CerebrasArchitectureDeep_2022, Lauterbach_PathSuccessfulWaferScale_2021, Cerebras_WaferScaleDeepLearning_2019, Lie_MultiMillionCoreMultiWafer_2021}, the performance of 2D-mesh networks is poor because the diameter is up to $O(\sqrt{N})$. There are significant differences in design approaches between large and small networks; thus, it is challenging to develop systems of various scales based on the same chiplet.
+
+Another challenge is the routing design for multi-chiplet systems. The interconnection network is particularly sensitive to routing issues. However, conventional routing technologies cannot be directly applied to multi-chiplet systems. Connecting several networks-on-chip (NoCs) together can lead to potential deadlocks and congestion problems\cite{Yin_ModularRoutingDesign_2018, Majumder_RemoteControlSimple_2021}. At the same time, the routing algorithm is closely related to the topology and scale of the system, so it is not easy to expand. Almost all recent works adopt simple but inefficient interconnection and routing schemes such as dimensional-order routing (DOR) on 2D-mesh~\cite{Shao_SimbaScalingDeepLearning_2019, Zimmer_032128TOPSScalable_2020, Chang_DOJOSuperComputeSystem_2022, Talpes_DOJOMicroarchitectureTeslas_2022, Lie_CerebrasArchitectureDeep_2022, Lauterbach_PathSuccessfulWaferScale_2021, Cerebras_WaferScaleDeepLearning_2019, Lie_MultiMillionCoreMultiWafer_2021, Vivet_IntAct96CoreProcessor_2021, Pal_Designing2048Chiplet14336Core_2021, Ignjatovic_WormholeAITraining_2022}. Such primitive approaches not only limit performance and scalability but also fail to provide fault tolerance.
+
+To address the challenges, a new software-based approach that can redefine the topological property of the traditional 2D-mesh-NoC-based chiplet is proposed. The interface nodes of chiplets are grouped into several abstract interfaces, and high-radix topologies can be flexibly interconnected. For such 2D-mesh-NoC-based high-radix networks, a scalable deadlock-free adaptive routing algorithm is presented based on minus-first routing (MFR). Additionally, the \textit{safe/unsafe} flow control is introduced to simplify routing design, and the \textit{network interleaving} method is proposed to improve the bandwidth usage of the interface. The contributions of this chapter can be summarized as follows:
+
+\begin{itemize}
+  \item A method to scale large high-radix interconnection systems with 2D-mesh-NoC-based chiplets is proposed, achieving more efficient and flexible interconnection without changing much of the typical NoC architecture.
+  \item A scalable, deadlock-free, adaptive routing algorithm for interconnection networks of chiplets is introduced. The algorithm is applicable to most common topologies, including nD-mesh, hypercube, and dragonfly. Compared with traditional MFR, the new algorithm is modularly labeled and easy to scale at the chiplet level.
+  \item The \textit{safe/unsafe} flow control and the \textit{network interleaving} method are proposed to address potential drawbacks arising from the new interconnection design. The two methods are general and can be applied to most multi-channel interconnection networks.
+  \item Different architectures and traffic patterns are evaluated on a cycle-accurate C++ simulator. The evaluation results show that our methodology has significant performance advantages over traditional multi-chiplet interconnection networks based on flat topologies.
+\end{itemize}
+
+% The rest of the chapter is organized as follows. In section~\ref{backgroud}, we briefly describe the background and prerequisite knowledge. In section~\ref{sec_interconnection_netowork_of_chiplets}, we explain in detail how the nodes are labeled and how the chiplets are connected. In section~\ref{sec_routing}, we describe the routing algorithm in detail and give a specific example. The method \textit{network interleaving} is introduced in section~\ref{sec_interleaving}. The simulator \textit{CISim} and the experimental configuration are introduced in section~\ref{sec_methodology}. The evaluation and exploration results are presented in section~\ref{sec_exploration}. The chapter is concluded in section~\ref{sec_summary}.
+
+% \section{Background}
+% \label{backgroud}
+% \subsection{Multi-Chiplet Architecture}
+% The conventional VLSI system is implemented on a monolithic die. However, the chip area is limited by the lithographic reticle, and designing large chips is very costly~\cite{Naffziger_PioneeringChipletTechnology_2021, Loh_UnderstandingChipletsToday_2021}. Multi-chiplet architecture is to build large systems from multiple small chiplets. The design difficulty and manufacturing cost of small chiplets are far less than that of large chips~\cite{Feng_ChipletActuaryQuantitative_2022}.
+
+% Moreover, packaging technology and high-speed wireline technology have made great progress in recent year. \textit{Serdes} technologies such as \textit{OIF-CEI-112G} can interconnect chiplets at high speed over long distances on the interposer or substrate~\cite{Kim_81224GbDACBased_2021, Minkenberg_CopackagedDatacenterOptics_2021}. 2.5D packaging technologies such as \textit{CoWoS} provide large interposers with fine pitch and high volumes wires for chiplets integration~\cite{Huang_WaferLevelSystem_2021}.  With the support of advanced packaging and high-speed wireline technology, there are more interconnection possibilities off-chip than on-chip.
+
+
+% \subsection{Interconnection Network Bascis}
+% The interconnection network is an indispensable part of all computing systems. The communication between any pair of components in the system must be through the interconnection network. All collective communication operations are also completed via the network. Therefore, cost-effective network design and efficient routing algorithms are essential to system performance.
+
+% Topology is one of the most important factors affecting network performance. As shown in Table~\ref{table:diameter}, for an $N$ node network, 2D-mesh has a long diameter of $2(\sqrt{N}-1)$ while hypercube has a short diameter of $\log_{2}{N}$. The larger the network, the larger the diameter difference caused by topology. Cerebras presents a wafer-scale system, which interconnects hundreds of dies into 2D-mesh~\cite{Cerebras_WaferScaleDeepLearning_2019, Lie_MultiMillionCoreMultiWafer_2021}. As the network diameter is so large, they have to keep the communication as localized as possible. Therefore, it is necessary to adopt higher radix topologies for large-scale systems.
+
+% \begin{table}[ht]\small
+%   \centering
+%   \caption{Network Diameter}
+%   \label{table:diameter}
+%   \begin{tabular}{|c|c|c|c|}
+%     \hline
+%     \textbf{2D-Mesh} & \textbf{2D-Torus} & \textbf{nD-Mesh}   & \textbf{Hypercube} \\
+%     \hline
+%     $2(\sqrt{N}-1)$  & $\sqrt{N}$        & $n(\sqrt[n]{N}-1)$ & $\log_{2}{N}$      \\
+%     \hline
+%   \end{tabular}
+% \end{table}
+
+
+% In addition to the interconnection topology, routing algorithms are also important. In addition to ensuring high-performance connectivity of the network, the routing algorithm should also ensure deadlock-free. Virtual channels can be used to avoid deadlocks~\cite{Dally_DeadlockFreeMessageRouting_1987}. A physical channel is split into several virtual channels in a time division multiplex way to isolate channel resource dependencies. However, large and complex systems require a huge number of virtual channels, which bring serious area and power overhead. As for small systems, these virtual channels become wasteful. Therefore, we need to minimize the use of virtual channels.
+
+% Duato \textit{et al.} proposed a sufficient condition for designing deadlock-free adaptive routing algorithms for arbitrary interconnect networks, as shown in Lemma~\ref{chap04:lemma:duato}~\cite{Duato_InterconnectionNetworksEngineering_2003}. Based on this theorem, we only need to provide a deadlock-free routing algorithm as the baseline routing scheme, and other channels are used as the adaptive channels for routing flexibility.
+
+
+% \begin{lemma}
+%   For a virtual cut-through (VCT) switching interconnection network $I$, a connected routing function $R$ is deadlock-free if there exists a channel subset $C_1 \subset C$ such that the routing subfunction $R_{1}(x, y)=R(x, y) \cap C_{1} \forall x, y \in N$ is connected and deadlock-free.
+%   \label{chap04:lemma:duato}
+% \end{lemma}
+
+% Minus-first routing (MFR) is a label-based algorithm developed from Up*/Down* routing~\cite{Schroeder_AutonetHighspeedSelfconfiguring_1991, Xiang_CostEffectivePowerAwareCore_2011, Xiang_DeadlockFreeBroadcastRouting_2016, Xiang_FaultTolerantAdaptiveRouting_2019}. Compared with Up*/Down* routing, MFR is a more general approach. MFR assigns each node a numerical label, all links from smaller labels to larger labels are plus links, and links from larger to smaller are minus links. A legal route cannot be switched from plus links to minus links. In this way, deadlocks are avoided because channel dependency cycles cannot form. As for 2D-mesh, negative-first routing (NFR), also known as turn restriction routing~\cite{Glass_TurnModelAdaptive_1992}, is a special case of MFR. It restricts turning to a negative direction ($X-, Y-$) while the current direction is positive ($X+, Y+$). However, in traditional MFR, the whole system is uniformly labeled, and all node labels are different. If the network topology or scale changes, nodes must be re-labeled; Otherwise, deadlock-free and connectivity are not guaranteed. Therefore, traditional MFR is hard to scale for multi-chiplet systems.
+
+
+\section{Interconnection Networks of Chiplets}
+\label{sec_interconnection_netowork_of_chiplets}
+
+\subsection{On-Chiplet Network}
+Limited by the layout and wiring capabilities of the chip, most on-chip interconnection networks have a flat topology. Therefore, the most commonly used 2D-mesh is adopted as the topology of the on-chip network. As Figure~\ref{chap04:fig:architecture}(a) shows, all the nodes of the 2D-mesh are classified into two categories: edge nodes and internal nodes. Edge nodes, also called interface nodes, are routers attached to external interfaces such as chiplet-to-chiplet interfaces or memory controllers; internal nodes, also called core nodes, are routers attached to functional modules such as CPU cores and AI cores. The microarchitecture of the router is the typical virtual channel router~\cite{EnrightJerger_OnchipNetworksSecondEdition_2018}, which contains a few separate buffers at each input port. The switching technology of the router is based on VCT, which is widely adopted in the on-chip network. The flow control policy is not strictly constrained. A credit-based advanced flow control approach is provided in Section~\ref{sec_SUR}. Optional hardware support includes a modifiable packet header, configurable routing tables, and software-defined virtual channels. Such support is not indispensable but can improve routing flexibility and performance.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2023HPCA/architecture.pdf}
+  \caption{Network on the chiplet and interface grouping. (a) 36 ($6\times 6$ 2D-mesh) NoC nodes on the chiplet based on the typical virtual channel microarchitecture; (b) The node labels of the core nodes and the edge nodes: for all core nodes, the labels are the same as traditional 2D-mesh (from the left lower corner 0, increasing row by row to the upper right corner); and for edge nodes, they form a negative label ring (from the left lower corner -1, decreasing along the edge ring); (c) Two interface grouping schemes for the $6\times 6$ 2D-mesh: radix-4 and radix-10. \label{chap04:fig:architecture}}
+\end{figure}
+
+\label{labeling}
+In our method, each node of the on-chip network has a label for routing. A practical labeling example is shown in Figure~\ref{chap04:fig:architecture}(b) that works well with our routing algorithm. For all core nodes, the labels are the same as a traditional 2D-mesh (from the left lower corner 0, increasing row by row to the upper right corner); and for edge nodes, they form a negative label ring. With labels like this, any message from the core nodes can traverse all interfaces along a path with reduced labels; At the same time, any message from interface nodes can traverse all core nodes along a path with increased labels. Labeling-based routing algorithms are widely used, but when connecting many chiplets together in various topologies, the old routing algorithm may not work anymore. In Section~\ref{sec_routing}, algorithms that implement deadlock-free high-performance routing in high-radix chiplet interconnection networks with such labels are presented.
+
+
+\subsection{Interface Grouping}
+\label{grouping}
+Before interconnecting, necessary abstraction of the chiplet is made. Although each node of the 2D-mesh NoC is radix-4 (except the local port), the whole chiplet is a high-radix node with numerous external interfaces. Nevertheless, if the chiplet-to-chiplet interface of each edge node is regarded as an independent output port of the chiplet node, the radix of the chiplet node could be too high, and the bandwidth of each channel would be insufficient for inter-chiplet communication. Therefore, a method called \textit{interface grouping} is presented to cluster the adjacent edge nodes into several groups. For all physical interfaces in a group, they are treated as a single software-defined interface and always connect them to the same size interface on another chiplet. As Figure~\ref{chap04:fig:architecture}(c) shows, a $6\times 6$ 2D-mesh has 20 edge nodes, and these nodes can be clustered into 4 or 10 groups. After interface grouping, chiplets can be regarded as large nodes with flexible radix. In this way, the radix of the chiplet node and the bandwidth on each edge can be flexibly adjusted. Such a grouping method is not based on hardware but is software-defined, so it does not change the original NoC architecture.
+
+However, the software-defined grouping approach can probably lead to bandwidth underutilization. Although the two chiplets are connected through multiple physical interfaces after grouping, each packet is transmitted along only one of the channels. To make matters worse, the link bandwidth inter-chiplet is usually less than that intra-chiplet. This makes the overall system performance limited by the chiplet-to-chiplet link. Inspired by the multi-channel memory system, a method called \textit{network interleaving} is proposed to make full use of the interface bandwidth. More details will be given in Section~\ref{sec_interleaving}.
+
+
+\subsection{Chiplets Interconnections}
+\label{sec_interconnection}
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023HPCA/interconnection.pdf}
+  \caption{Interconnection topologies based on the same chiplet, whose all interfaces are grouped into four abstract dimensions (\textit{e.g.,} the left case of Figure~\ref{chap04:fig:architecture}(c)). (a) hypercube; (b) fully connected. \label{chap04:fig:Interconnection}}
+\end{figure}
+
+After interface grouping, each chiplet can be regarded as a high-radix node. Therefore, chiplets can support topologies with shorter diameters. Unlike ports of the ordinary router, interface groups of the chiplet nodes are not equivalent, and different connections will significantly impact routing and performance. There are some perceptual observations; For example, if two interface nodes of the same label are connected, then MFR can be smoothly extended from one chiplet to another. When routing through the intermediate chiplets, the closer the inbound and outbound interfaces are to each other, the lower the communication latency. Therefore, we need to design our connections carefully. We take three typical high-radix topologies as examples.
+
+\begin{figure}[htb]
+  \centering
+  \begin{minipage}{.85\linewidth}
+  \begin{algorithm}[H]
+  \begin{algorithmic}[1]
+    \REQUIRE \quad \\  $2^n$ chiplets, \\ $n$ interface groups for each chiplet; \\
+    \FOR{$i = 0$ to $2^n-1$}
+    \STATE Coordinate of the $i^{th}$ chiplet \\ $C_i = (i\,\text{\%} 2, (i/2)\text{\%}2, \cdots, (i/2^{n-1})\text{\%}2)$;
+    \FOR{$j = 0$ to $n-1$}
+    \STATE Connect the output ports of the $j^{th}$ interface group of $C_i$ to the input ports of the $j^{th}$ interface group of chiplet \\ $C_{i,j} = (i\,\text{\%}2, \cdots, \mathbf{1-(i/2^{j})\text{\%}2}, \cdots, i/2^{n-1})$;
+    \ENDFOR
+    \ENDFOR
+  \end{algorithmic}
+  \caption{\scshape Connecting chiplets into hypercubes  \label{dragonfly-connection}}
+\end{algorithm}
+\end{minipage}
+\end{figure}
+
+As Figure~\ref{chap04:fig:Interconnection}(a) shows, chiplets can be connected into a hypercube of $2^n$ nodes by clustering interfaces into $n$ groups. The detail is present in Algorithm~\ref{dragonfly-connection}. The dimension of the interface group grows along the edge ring, and each chiplet-to-chiplet link connects ports of the same dimension, ensuring the labels' consistency across chiplets to facilitate routing. In other words, the relative position of the message remains the same after it is transmitted across the chiplet. Compared with 2D-mesh, the diameter of the hypercube reduces from $2(\sqrt{N}-1)$ to $\log_2N$, and it doesn't waste ports at the edge.
+
+
+As Figure~\ref{chap04:fig:Interconnection}(b) shows, chiplets can also be connected into a fully connected network of $n+1$ nodes by clustering interfaces into $n$ groups. The connection method is derived from~\cite{Xiang_DeadlockFreeBroadcastRouting_2016} and \cite{Xiang_FaultTolerantAdaptiveRouting_2019}, which fits the MFR algorithm well. Compared with 2D-mesh, the diameter of the dragonfly reduces from $2(\sqrt{N}-1)$ to $1$, and it also doesn't waste ports at the edge.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.95\linewidth]{../figures/2023HPCA/nDMesh.pdf}
+  \caption{Chiplets interconnection topologies: (a) connection and label details of the 5D-mesh; (b) connection overview of the $d_0$-$d_1$ plane of the 4D-mesh.\label{chap04:fig:nDMesh}}
+\end{figure}
+
+Another typical topology is nD-mesh. As Figure~\ref{chap04:fig:nDMesh} shows, chiplets can be connected into an nD-mesh by clustering interfaces into $2n$ groups. The dimension of the interface group grows along the edge ring; each dimension has two directions: negative ($d-$) and positive ($d+$). The chiplet-to-chiplet link connects the positive and negative interfaces of adjacent chiplets in the same dimension. That is, messages that travel across chiplets fall in different directions of the same dimension. Compared with 2D-mesh, the diameter reduces from $2(\sqrt{N}-1)$ to $n(\sqrt[n]{N}-1)$.
+
+In addition to supporting the above homogeneous topologies, irregular topologies can also be supported when only a single chiplet is used. As Figure~\ref{Tree} shows, due to the scalability of 2D-mesh NoC, multiple chiplets can be used to form a larger 2D-mesh. After interface re-grouping, heterogeneous networks such as the tree and even irregular networks can be connected.
+
+Although chiplets can be interconnected in various ways, it is a long way from a high-performance network. On these complex and high-radix networks, efficient and deadlock-free routing algorithms are required.  More details about routing will be discussed in the next section.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.5\linewidth]{../figures/2023HPCA/Tree.pdf}
+  \caption{Chiplet interconnection topologies: tree (irregular topology). Multiple 2D-mesh can be built into a larger 2D-mesh, which leads to a higher-radix chiplet node. \label{Tree}}
+\end{figure}
+
+\section{Routing Design}
+\label{sec_routing}
+This section presents our methodology for designing a deadlock-free routing algorithm for interconnection networks of chiplets. We will first give the overall framework of the routing algorithm and then give a concrete example of the chiplet hypercube network. Finally, we will introduce an advanced flow control technique that simplifies routing. As described in Section~\ref{sec:routing}, we only need to design a deadlock-free subnetwork. The channels in this section refer to these escape channels, while those not mentioned can be used fully adaptively. Before describing our methodology, some necessary concepts are defined.
+
+\begin{definition}
+  A physical or virtual channel from a larger-label node to a smaller-label node is called a \textit{minus channel}; A physical or virtual channel from a smaller-label node to a larger-label node is called a \textit{plus channel}; A physical or virtual channel connecting nodes of the same label is called an \textit{equal channel}.
+\end{definition}
+
+\begin{definition}
+  A node inside the 2D-mesh-NoC is called a \textit{Core}; a node on the edge of the 2D-mesh-NoC is called an \textit{Interface (IF)}.
+\end{definition}
+
+\begin{definition}
+  \label{def_MFR}
+  \textit{Minus-first Routing (MFR)} is a routing algorithm that restricts turning to a minus channel while the current channel direction is a plus. In other words, a message is delivered across a few minus hops first and then across a few plus hops to the destination. Paths that follow the routing rule are called \textit{minus-first paths}.
+\end{definition}
+
+\begin{definition}
+  \label{def_safe}
+  A packet is delivered and kept in the next input buffer as a \textit{safe} packet if it has a \textit{minus-first path} from the current channel to the destination; otherwise, the packet is \textit{unsafe}.
+\end{definition}
+
+\begin{definition}
+  \label{def_equalgroup}
+  A \textit{equal label group} is a group of connected nodes with the same label.
+\end{definition}
+
+\subsection{MFR Algorithm}
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023HPCA/plus-minus.pdf}
+  \caption{Overview for three kinds of channels: plus, minus, and equal. Every channel type can be determined based on the node label. \label{chap04:fig:plus-minus}}
+\end{figure}
+
+The general idea of designing the MFR algorithm is to find a ``minus-first'' path for any node pair based on the labels. As described in Section~\ref{labeling}, the labels of the cores are the normal labels of the 2D-mesh, and the labels of the IFs are a ring of negative. Therefore, the overview of the channel properties is given. As shown in Figure~\ref{chap04:fig:plus-minus}, red arrows are minus channels, and green arrows are plus channels. In particular, the turns from minus to plus can be summarized into six situations: \ding{172}From a minus channel (also the negative channel in 2D-mesh) turn to a plus channel along the IF ring; \ding{173}From a minus channel (original positive channel in 2D-mesh) turn to a plus channel along the IF ring; \ding{174}From a minus channel along the IF ring turn to a plus channel pointing to the core; \ding{175}From a minus channel along one chiplet IF ring turns to a plus channel of another chiplet IF ring; \ding{176}From a minus channel along the IF ring to the end and then turn to the plus channel ($-20$ to $-1$). \ding{177}From a negative channel to a positive channel (among cores).
+
+\begin{figure}[htb]
+  \centering
+  \begin{minipage}{.8\linewidth}
+  \begin{algorithm}[H]
+  \begin{algorithmic}[1]
+    \REQUIRE \quad \\  current node $C$, \\ packet $P$, \\
+    \STATE $Offset$ =  different dimensions of chiplet coordinates.
+    \STATE assert($Offset ~!= \emptyset$)
+    \STATE $B$ = IF node of dimension $d_B \in Offset$ that need to transfer first
+    \IF{$C$ == $B$}
+    \STATE transfer to adjacent chiplet through the outward channel
+    \ELSE
+    \STATE transfer to $B$ based on {\scshape MFR(C,P) Within Chiplet}
+    \ENDIF
+  \end{algorithmic}
+  \caption{\scshape MFR(C,P) among chiplets  \label{MFRacrosschip}}
+\end{algorithm}
+\end{minipage}
+\end{figure}
+
+\begin{figure}[htb]
+  \centering
+  \begin{minipage}{.8\linewidth}
+  \begin{algorithm}[H]
+  \begin{algorithmic}
+    \REQUIRE \quad \\  current node $C$, \\ packet $P$, \\ \quad
+    \ENSURE {\scshape Core\_to\_Core(C,P)}
+    \STATE transfer based on {\scshape negative\_first\_routing(C,D)}. \\ \quad
+    \ENSURE {\scshape  IF\_to\_IF(C,P)}
+    \STATE transfer along the IF ring, out of the chiplet through the external link if necessary; only one turn from minus to plus channels is allowed \\ \quad
+    \ENSURE {\scshape IF\_to\_Core(C,P)}
+    \STATE transfer along the IF ring until \\ the label of adjacent core node $\le$ destination\footnotemark, then transfer based on {\scshape Core\_to\_Core(C,P)} by only plus channels. \\ \quad
+    \ENSURE {\scshape Core\_to\_IF(C,P)}
+    \STATE transfer to an IF node by only minus channels, then transfer based on {\scshape IF\_to\_IF(C,P)}.
+  \end{algorithmic}
+  \caption{\scshape MFR(C,P) Within Chiplet \label{MFRinchip}}
+\end{algorithm}
+\end{minipage}
+\end{figure}
+
+\footnotetext{Equality implies that adjacent nodes are the target core node}
+
+Routing across chiplets is relatively easy to describe because inter-chiplet channels always go from IF nodes to IF nodes. As Algorithm~\ref*{MFRacrosschip} shows, the routing algorithm only needs to determine which IF to leave from; if the message arrives, transfer to the adjacent chiplet through the outward channel; if it does not arrive, call {\scshape $MFR(C,P)$ within chiplet} to reach the IF.
+
+As Algorithm~\ref{MFRinchip} shows, the in-chiplet routing can be divided into four types: \textit{core-to-core}, \textit{IF-to-IF}, \textit{IF-to-core}, and \textit{core-to-IF}. These algorithms are invoked in stages for routing any message. For intra-chiplet messages, the minus-first rule is easy to maintain. However, for inter-chiplet messages, the path needs to be carefully planned. For example, for a core-to-core inter-chip message, the {\scshape Core\_to\_IF(C,P)} is called first to send the message to the outward interface by the minus-only path. All subsequent cross-chip transmissions are on the interface ring based on {\scshape  IF\_to\_IF(C,P)} until the target chiplet is reached. Then, {\scshape IF\_to\_Core(C,P)} is called after passing through the chiplet-to-chiplet link. Since channels from the interface into the core mesh are plus channels, the message must be sent to an appropriate interface, such as interface $-1$ or $-19$ in Figure~\ref{chap04:fig:plus-minus}, so that the message doesn't need to go through a minus channel later. There is a free chance for a message to turn from the minus direction to the plus direction as it travels through the interface rings. However, more redirects must be introduced with extra virtual channels or other flow control technologies.  For most topologies that can adopt dimensional-order routings, such as nD-mesh and hypercube, our algorithm can be perfectly adapted.
+
+
+
+\subsection{Deadlock Issues of Equal Channels}
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.7\linewidth]{../figures/2023HPCA/deadlock.pdf}
+  \caption{Deaklock inside the interface groups of the nD-mesh topology. In one dimension, packets moving in two different directions form a channel dependency circle. (a) packet routes; (b) channel dependency graph. \label{chap04:fig:deadlock}}
+\end{figure}
+
+In Section~\ref{grouping}, an interface grouping method is proposed that abstracts several edge nodes as one external interface. Assigning the same label to all the nodes in the group during routing design may lead to potential deadlocks. This is because the channel in the group is a new kind of channel: \textit{equal channel}. \textit{Equal channel} also occurs between chiplets if connecting the interfaces of the same label of two chiplets. The channel dependency chains \textit{plus-to-equal-to-minus} and \textit{equal-to-equal} may result in deadlocks. For example, Figure~\ref{chap04:fig:deadlock} demonstrates a deadlock configuration of the nD-mesh topology. The dependency circle forms among the interface groups of the same label in the same dimension. Therefore, we have to solve this problem.
+
+One straightforward way is to label each physical interface individually. However, the interface group can no longer be treated as an entire node, significantly increasing the difficulty of routing design among chiplets. Moreover, once interfaces cannot be grouped according to the dimensions of the chiplet topology, many algorithms and conclusions based on dimensional order routing are no longer applicable. Therefore, MFR is improved to solve the deadlock problem while keeping the group's unified label. The revision of the MFR is shown in Theorem~\ref{MFRwithequal}.
+
+\begin{theorem}
+  \label{MFRwithequal}
+  The MFR algorithm with \textit{equal channels} is deadlock-free if the following conditions are met:
+  \begin{itemize}
+    \item[1.] A packet that has passed through the \textit{plus channel} is prohibited from turning to the minus channel;
+    \item[2.] In the \textit{equal label groups}, virtual channels are used to separate packets entering along the plus-channel (if any) from other packets;
+    \item[3.] There is no deadlock in the \textit{equal label groups}.
+  \end{itemize}
+\end{theorem}
+
+\begin{proof}
+  Suppose there is a channel dependency circle. As there is no deadlock in the \textit{equal label group} according to condition 3, at least one channel of the circle is not equal. So there must be a chain of dependency going from a plus channel to a minus channel. As turning from a plus channel directly to a minus channel is prohibited by the MFR, there must be at least one equal channel in the middle of the chain, which means that the chain must go through at least one \textit{equal label group}. According to condition 2, packets entering the group along the plus channel will go to another virtual sub-network, and according to condition 1, packets in this virtual sub-network cannot turn to the minus channel as they leave. Therefore, the channel dependency circle cannot exist; That is, the MFR algorithm with \textit{equal channels} is deadlock-free.
+\end{proof}
+
+
+% \subsubsection*{\bf Proof} Suppose there is a channel dependency circle. As there is no deadlock in the \textit{equal label group} according to condition 3, at least one channel of the circle is not equal. So there must be a chain of dependency going from plus channel to minus channel. As turning from a plus channel directly to a minus channel is prohibited by MFR, there must be at least one equal channel in the middle of the chain, which means that the chain must go through at least one \textit{equal label group}. According to condition 2, packets entering the group along the plus channel will go to another virtual sub-network, and according to condition 1, packets in this virtual sub-network cannot turn to the minus channel as they leave. Therefore, the channel dependency circle cannot exist, that is, the MFR algorithm with \textit{equal channels} is deadlock-free.
+
+Based on this theorem, cross-group deadlocks are solved by adding virtual channels at the interface nodes. For deadlocks within the \textit{equal label groups}, as dependencies are isolated from the outside, the routing can be designed individually. For the nD-mesh topology, before packets reach the destination chiplet in a dimensional order along the minus path, they do not need to go through any plus channel. Hence, virtual channels in condition 2 are not necessary. For deadlock in the equal label groups, one virtual channel can be used to separate the packets in $d+$ and $d-$ directions.  Therefore, global deadlock-free routing can be realized for nD-mesh by adding one virtual channel. Since the hypercube and dragonfly networks have neither cross-equal-group deadlock nor intra-equal-group deadlock, global deadlock-free routing can be achieved without virtual channels.
+
+\subsection{Case Study: Hypercube}
+The hypercube is a topology with a simple structure and short diameter. As it is very popular and easy to describe, MFR on hypercube is presented as a specific example. As introduced in Section~\ref{sec_interconnection}, dimensions grow along the ring, and interfaces of the same dimension (label) are connected.
+
+\begin{figure}[htb]
+  \centering
+  \begin{minipage}{.8\linewidth}
+  \begin{algorithm}[H]
+  \begin{algorithmic}[1]
+    \REQUIRE \quad \\ current node $C$, \\ packet $P$;
+    \STATE \textit{Offset} = different dimensions of chiplet coordinates. Each dimension is associated with an IF group;
+    \WHILE{\textit{Offset} $!= \emptyset$}
+    \STATE transfer to an IF node B ($d_{B} = \min\{Offset\}$ with the largest label) based on {\scshape IF\_to\_IF(C,P)} or {\scshape Core\_to\_IF(C,P)} by only minus channel;
+    \STATE transfer to adjacent chiplet through outward channel;
+    \ENDWHILE
+    \IF{$P.destination$ is IF node}
+    \STATE transfer based on $IF\_to\_IF(C,P)$;
+    \ELSIF{$P.destination$ is core node}
+    \STATE transfer based on $IF\_to\_Core(C,P)$;
+    \ENDIF
+  \end{algorithmic}
+  \caption{\scshape MFR(C,P) for hypercubes \label{chap04:alg:MFRonhypercube}}
+\end{algorithm}
+\end{minipage}
+\end{figure}
+
+Routing detail is present in Algorithm~\ref{chap04:alg:MFRonhypercube}. Each chiplet has its coordinates in the hypercube, from which the $Offset$ can be calculated, which are the dimensions that need routing. The interface nodes of these dimensions are distributed along the interface ring, and a message can traverse all these dimensions by going around the interface ring through a minus-only path. Once a message reaches the target chiplet, if the destination node is an interface node, it is sent directly along the ring by a minus or plus direction; the minus-first principle has been guaranteed. If the destination node is a core node, the message continues along the interface ring until either the neighboring node is the destination node or the $X$ and $Y$ coordinates of the current interface in the 2D-mesh-NoC are smaller than the destination node. Then, the message can easily take a plus-only path from the interface to the destination node.
+
+
+% If the destination node is an interface node, a message must start at the dimension of the largest label, because it is very likely that the message will have to turn around on the interface ring after reaching the destination chiplet, therefore, it is necessary to maintain ``minus'' until then. If the destination node is a core node, the message also need to maintain ``minus'', because this can avoid the entrance from the \textit{plus} channel to the chiplet-to-chiplet link (\textit{equal} channel). For intermediate routing at interface nodes, messages only need to be transferred in the order of minus or plus on the interface ring until they reach the destination chiplet. Finally, if the destination node is an interface node, messages are sent directly along the ring, the minus-first principle has been guaranteed. Otherwise, if the destination node is a core node, messages are transferred along the interface ring until the label of adjacent core node $\le$ destination node, and then transferred by only \textit{plus} channel.
+
+Unlike the nD-mesh topology, the hypercube has only one direction in each dimension. Therefore, for the hypercube, messages do not go back as they traverse each dimension on the interface ring. In other words, messages keep going in the minus direction until finishing the last dimension. There are neither cross-equal-group nor intra-equal-group deadlocks for hypercubes. Therefore, global deadlock-free routing can be achieved without any virtual channels for hypercube networks.
+
+\subsection{MFR with Safe/Unsafe Flow Control}
+\label{sec_SUR}
+
+For various topologies, especially for irregular networks, it is tedious to find a minus-first path for any two pairs of communication nodes. Moreover, in order to comply with the minus-first principle, many routing paths are not the shortest paths. To overcome these limitations, a general method is provided to achieve convenient deadlock-free routing when at least two unclassified buffers are required. The method is based on flow control and was first implemented on 2D-mesh networks to balance buffer utilization~\cite{Luo_EfficientAdaptiveDeadlockFree_2012, Gorgues_AchievingBalancedBuffer_2014}.
+
+The definitions of \textit{safe} and \textit{unsafe} packets are shown in Definition~\ref{def:safe}. By definition, all the \textit{safe} packets have a path that conforms to the original routing algorithm to reach the destination. As shown in Algorithm~\ref{alg:flow-control}, \textit{safe/unsafe} flow control policy will check the status of the target router in the VC allocation stage. If there is more than one available channel or an available channel with at least one \textit{safe} packet, the packet is allowed to move. Or, if the packet is \textit{safe} at the next input port, it is also allowed to move. Otherwise, the packet is prohibited from being delivered.
+
+
+Since each input port must have an empty channel or a \textit{safe} packet, and by Definition~\ref{def_MFR}, \ref{def:safe}, and Theorem~\ref{MFRwithequal}, all \textit{safe} packets cannot form a deadlock circle. Therefore, a \textit{safe} packet must not be permanently blocked. As for \textit{unsafe} packets, a deadlock configuration requires many \textit{unsafe} packets to form a channel dependency circle. In this case, as long as any of these packets can be sent to an adjacent node and become a \textit{safe} packet, deadlocks are eliminated. The following three conditions must be met for a deadlock to occur:
+\begin{itemize}
+  \item[1.] Packets form a dependency circle;
+  \item[2.] None of these packets has a minus-first path from the current channel to the destination;
+  \item[3.] None of these packets has a minus-first path from an adjacent channel to the destination.
+\end{itemize}
+
+This is a stringent condition that is impossible to satisfy in most cases.  The \textit{safe/unsafe} flow control relaxes some deadlock restrictions but brings excellent routing design convenience. With this policy, all packets do not have to follow the minus-first path, but the shortest path. Another advantage of this approach is that it even allows some pairs of communication nodes to have no minus-first path between them. This flow control technique is of great help in extending the MFR algorithm to more general network architectures.
+
+\section{Network Interleaving}
+\label{sec_interleaving}
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.7\linewidth]{../figures/2023HPCA/interleaving.pdf}
+  \caption{Network Interleaving is to evenly distribute the cross-chip communication on the whole interface group. It is implemented by changing the target interface when calling {\scshape Core\_to\_IF(C,P)}. \label{interleaving}}
+\end{figure}
+
+In Section~\ref{grouping}, several interface nodes are grouped into one abstract interface. Since the grouping is software-defined, a traditional message can only come out from one physical channel. This resulted in a significant loss of bandwidth gains from grouping. Therefore, a new method called \textit{network interleaving} is proposed to improve inter-chiplet communication efficiency.
+
+As shown in Figure~\ref{interleaving}, when the source node sends a message to the destination node on another chip, the traffic is distributed evenly across the entire abstract interface. In this way, the inter-chip communication bandwidth can be fully utilized. The implementation of interleaved routing is very straightforward, requiring only changing the target interface in the calling algorithm {\scshape Core\_to\_IF(C,P)}. The hardware needs to modify the packet header during message packaging (add different tags), and the routers will send the packets to different interface nodes according to the tags.
+
+Just like memory interleaving, network interleaving has different granularity. Different interleaved granularity has different performance characteristics and different requirements on hardware. Two typical interleaving styles are introduced in detail.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.7\linewidth]{../figures/2023HPCA/interleaving-level.pdf}
+  \caption{Two different interleaving granularities. Different colored packets indicate that they take different physical channels. \label{chap04:fig:interleaving-level}}
+\end{figure}
+
+\subsection{Fine-grained Interleaving}
+
+The \textit{fine-grained interleaving} is to distribute the packets of a message to multiple physical interfaces of an abstract interface one by one. It alternately assigns different \textit{interleaving-tags} to the packet headers and sends packets to different physical interfaces. This fine-grained interleaving has the highest bandwidth utilization because it works even under light network load and is most evenly distributed spatially across interface nodes.
+
+However, fine-grained interleaving has drawbacks. The packets of a message must be individually packaged, and the routing calculation burden increases. When transmitting a single message, all physical interfaces are active, increasing the total power consumption. Moreover, fine-grained technology can introduce more serious \textit{out-of-order} problems. Out-of-order arrivals in a network can lead to packet loss, delays, and inefficiencies in data processing, as the receiving system may struggle to properly reconstruct the original sequence of messages.
+
+\subsection{Coarse-grained Interleaving}
+
+The \textit{coarse-grained interleaving} is to distribute packets in a coarser-grained way. As shown in Figure~\ref{chap04:fig:interleaving-level}, for every few packets or even every message, the router assigns a different \textit{interleaving-tag}. Compared with fine-grained interleaving, coarse-grained interleaving benefits under heavy network load. For a single message, there are only one or a few physical channels of bandwidth available.
+
+
+Nevertheless, coarse-grained interleaving is implementation-friendly. Based on the traditional router microarchitecture, little additional hardware is required to implement message-level interleaving. Under low network load, the coarse-grained interleaving reduces the power consumption of physical interfaces. However, there is still a problem of \textit{out-of-order}, which is not discussed in this article.
+
+
+
+\section{Evaluation Methodology}
+\subsection{Simulation Model \& Parameter Setting}
+% A top-level block diagram of \textit{CISim} is shown in Figure~\ref{chap04:fig:traffic}. \textit{System} is an abstract class that refers to the chiplet-based interconnection architecture and can derive concrete interconnect schemes such as nD-mesh and hypercube. Each system contains several chiplets, each of which is a 2D-mesh NoC. The \textit{simulation engine} is the wrapper aside the system that handles all operations, including routing, resource allocating, and transmitting. \textit{Message} is one of the core components of the simulator, and each instance represents a packet with several flits. The simulation system is set up based on the user-specified configuration file. Configurable parameters include the system topology, routing algorithm, traffic pattern, packet size, injection rate, etc. \textit{CISim} generates packets based on the injection rate and keeps them in a vector. The simulation engine will update these messages every cycle based on the current state of the system.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2023HPCA/traffic.pdf}
+  \caption{Evaluations on different traffic patterns. (a) Uniform (Random): $\lambda_{s d}=1 / N$;  (b) Uniform-hotspot: random 10\% node pairs; (c) Bit-complement: $d_i=\neg s_i$; (d) Bit-reverse: $d_i=s_{b-i-1}$; (e) Bit-shuffle: $d_i=s_{(i-1) \bmod b}$; (f) Bit-transpose: $d_i=s_{(i+b / 2) \bmod b}$. \label{chap04:fig:traffic}}
+\end{figure}
+
+To evaluate the network performance, we designed a chiplet-specific cycle-accurate C++ simulator, which will be introduced in detail in Chapter~\ref{chap06:cnsim}. The router model of the simulator is based on the typical virtual channel router~\cite{EnrightJerger_OnchipNetworksSecondEdition_2018}. The switching technology is based on virtual cut-through (VCT). It contains a pipeline of 4 stages: routing, VC allocation, switch allocation, and transmission. The crossbar is preemptively scheduled, and starvation is avoided through the \textit{first-come-first-serve} strategy. Flow control is based on credit, and each output port knows the occupation of the corresponding input buffer. The cross-chiplet VC allocation and cross-chiplet message transmission stages consume more clock cycles. Compared with other general-purpose network simulators such as \textit{booksim}~\cite{Jiang_DetailedFlexibleCycleaccurate_2013}, Our simulator allows non-uniform link configurations to reflect different properties inside and outside the chiplet. Each port's bandwidth, latency, and buffer size can be configured individually. It can also introduce longer delays for the cross-chiplet pipeline stages.
+
+\begin{table}[tb]
+  \centering
+  \caption{Default parameters.}
+  \label{table:global}
+  \begin{tabular}{cc}
+    \toprule
+    \textbf{Parameter}          & \textbf{Value}                             \\
+    \midrule
+    Flit Width                  & 32 bits                                    \\
+    Packet Length               & 32 flits                                   \\
+    Internal Buffer Size           & 1024 bits (32 flits)  \\
+    Interface Buffer Size                            & 2048 bits (64 flits) \\
+    Virtual Channel Number      & 2 channels/port                            \\
+    On-chip Link Bandwidth      & 128 bits/cycle (4 flits/cycle)             \\
+    Off-chip Link Bandwidth     & 64 bits/cycle (2 flits/cycle)              \\
+    Pipeline                    & 4 stages; 1 cycle/stage                    \\
+    Intra-Chip Link Extra Delay & 5 cycle                                    \\
+    Simulation Time             & 6000 cycles          \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The simulator's default parameters used in the following experiments are shown in Table \ref{table:global}. \textit{Duato's protocol}~\cite{Duato_InterconnectionNetworksEngineering_2003} is used based adaptive negative-first routing (NFR) on 2D-mesh as the baseline. This is reasonable and fair in terms of hardware and routing algorithms. The performance differences are mainly reflected by the chiplet interconnection method, cross-chiplet routing, and interleaving, which is the main methodology of this chapter.
+
+\subsection{Evaluation on Traffic Patterns}
+The method is evaluated on 6 different traffic patterns. Uniform (random) traffic can be described by a traffic matrix with all entries are $\lambda_{s d}=1 / N$. Uniform-hotspot is a sparse matrix with traffic only between random 10\% of the node pairs. The other 4 patterns are \textit{permutation traffic}, in which all traffic from each source is directed to one destination. These patterns are based on interconnection patterns that arise in particular applications. For example, matrix transpose induces the transpose pattern, and fast Fourier transform (FFT) causes the shuffle pattern~\cite{Dally_PrinciplesPracticesInterconnection_2004}. Node labels are global, so there is both internal (within chiplet) and global (between chiplets) traffic. The scale of the system is 64 4$\times$4-2D-mesh chiplets. The topologies (grouping approaches) are 2D-mesh ($8\times 8$, as the baseline), 3D-mesh ($4\times 4\times 4$, radix-6 grouping), and hypercube ($2^6$, radix-6 grouping).
+
+As shown in Figure~\ref{chap04:fig:traffic}, for all traffic patterns, our high-radix topology and routing algorithm have a significant latency advantage over traditional adaptive routing in 2D-mesh. Our MFR on the hypercube has a saturation injection rate of more than double at all traffic patterns. 3D-mesh has an advantage at some patterns, such as \textit{Bit-reverse}.
+
+The evaluation results show that our method can provide a better interconnection scheme than 2D-mesh for various traffic loads. Our methodology has a greater advantage under traffic with mass global (cross-chiplets) communications.
+
+\section{Explorations}
+\label{sec_exploration}
+\subsection{Exploration on System Scales}
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023HPCA/ex1.pdf}
+  \caption{Average latency evaluation results on topologies and scales (NoC scales) under uniform traffic. Off-chip link bandwidth is 64 bits/cycle. \label{chap04:fig:ex1}}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023HPCA/ex1_2.pdf}
+  \caption{Energy consumption estimation on different scales. 2D-mesh vs. hypercube under different chiplet numbers and NoC scales.  \label{chap04:fig:ex1_2}}
+\end{figure}
+
+Scale is the most important factor in the design of interconnection networks. Four different scales are evaluated on three topologies. The chiplet-to-chiplet link bandwidth is set to 64 bits/cycle (2 flits/cycle), and coarse-grained interleaving is enabled.
+
+As shown in Figure~\ref{chap04:fig:ex1}(a), when the scale of the on-chiplet network is raised to 8$\times$8 in Figure~\ref{chap04:fig:ex1}(b), the reduction in latency is smaller because the percentage of in-chiplet transmission latency increases. Then, the number of chiplets is increased to 64 and 256 in Figure~\ref{chap04:fig:ex1}(c)(d). nD-mesh and 2D-mesh have similar saturation injection rates, but MFR on nD-mesh still has significant latency advantages: $\sim$35\% for 3D-mesh and $\sim$55\% for 4D-mesh. Furthermore, our MFR on hypercube topology is much better than the baseline in both latency and saturation injection rate. Up to 2$\times$ saturation injection rate is achieved with latency smaller than 50\%.
+
+The on-chip energy consumption is based on the model presented by~\cite{Wolkotte_EnergyModelNetworksonChip_2005}. Under $2mm$ wire length, the dynamic energy required to transport a message between two nodes is estimated by 0.98 pj/bit per router and 0.63 pj/bit per link. The overhead of the off-chip link is estimated by 2.4 pj/bit according to the recent work~\cite{Meng_5GbpsSerializerASIC_2022}. Based on these data, the average energy cost of message delivery for 2D-mesh and hypercube networks is evaluated at different scales. The evaluation results are shown in Figure~\ref{chap04:fig:ex1_2}. Our method has obvious advantages for power consumption in both on-chip and off-chip transmission, especially for large-scale networks. For the 256-chiplets-hypercube, the power consumption is reduced by $\sim$60\% compared with 2D-mesh.
+
+In general, our methodology works better on more chiplets and is not sensitive to the scale of on-chip networks. The high-radix topology dramatically reduces the network diameter on a large scale compared with the 2D-mesh. A shorter chiplet network diameter not only reduces the number of hops across chiplets but also reduces the number of hops within passing chiplets. Therefore, the average hop number decreases are reflected in lower latency and power consumption.
+
+
+\subsection{Exploration on Chiplet-to-Chiplet Link Configuration}
+
+Another factor that can have a significant impact on the performance is the chiplet-to-chiplet link. Four different bandwidth configurations are evaluated on 64 4$\times$4-2D-mesh-based chiplets. Coarse-grained interleaving is used, and the chiplet-to-chiplet link bandwidth is set to 1/4$\times$, 1/2$\times$, 1$\times$, and 2$\times$ of the on-chip link bandwidth.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023HPCA/ex2.pdf}
+  \caption{Average latency evaluation results on chiplet-to-chiplet link bandwidth under uniform traffic. The chiplet number is 64, and the NoC scale is 4$\times$4. \label{chap04:fig:ex2}}
+\end{figure}
+
+As shown in Figure~\ref{chap04:fig:ex2}(a), inadequate bandwidth greatly limits the network performance. Both 2D and 3D meshes quickly reach the saturation point, but the saturation injection rate of the hypercube network is still twice that of the mesh. When link bandwidth is raised to 64 bits/cycle (2 flits/cycle) in Figure~\ref{chap04:fig:ex2}(b), the overall performance comparison does not change. The hypercube network has twice the saturation injection rate and half the average latency. However, with the further increase in link bandwidth, performance improvements in high-radix networks have stalled. As shown in Figure~\ref{chap04:fig:ex2}(c)(d), the high-radix network still has a low latency advantage, but the saturation injection rate is close to or even worse than the 2D-mesh. This is because the bottleneck of the network is no longer cross-chiplet communication but intra-chiplet communication.
+
+
+The impact of the chiplet-to-chiplet link latency and the link buffer size is also evaluated. As 2D-mesh allows for short-reach links with lower latency, the configuration is a 5-cycle delay and a 2048-bit buffer size for 2D-mesh. Hypercube topology is used in the experimental groups, and different link configurations are evaluated. The results are shown in Figure~\ref{ex2_2}. With the increase of the link delay, the average latency of message delivery increases rapidly. The buffer size of the link has little impact on performance. 64-hypercube with a 15-cycle link delay still has better performance than 64-2D-mesh with a 5-cycle link delay, but the lead is smaller.
+
+
+In summary, our method has a significant positive effect on bandwidth-constrained multi-chiplet systems. By reducing the network diameter and average hop count, our method reduces the bandwidth usage of in-transit packets for on-chip and off-chip links, thus improving the network performance. As for the system with abundant inter-chiplet link bandwidth, our method can still significantly reduce the average latency, but the injection rate bottleneck becomes the on-chip network. The link delay impacts the system more than the buffer size. Although 2D-Mesh can use the interface with shorter reach and delay, it still lacks the performance and flexibility of our approach.
+
+\subsection{Exploration on Interleaving}
+The above experiments all enabled interleaving. No interleaving and different interleaving granularities on 64 4$\times$4-2D-mesh-based chiplets are also evaluated. The chiplet-to-chiplet link latency is 5-cycles. Configuration (a) is 64 bits/cycle link bandwidth and Configuration (b) is 128 bits/cycle link bandwidth.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023HPCA/ex2_2.pdf}
+  \caption{Average latency evaluation results on chiplet-to-chiplet link latency and buffer size under uniform traffic. The chiplet number is 64, and the NoC scale is 4$\times$4. Off-chip link bandwidth is 64 bits/cycle. The link buffer size for the 2D-mesh is 2048 bits. \label{ex2_2}}
+\end{figure}
+
+
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2023HPCA/ex3.pdf}
+  \caption{Average latency evaluation results on interleaving under uniform traffic. T chiplet number is 64, and NoC scale is 4$\times$4. The topology of the experimental group is the hypercube. \label{chap04:fig:ex3}}
+\end{figure}
+
+As shown in Figure~\ref{chap04:fig:ex3}, interleaving provides a considerable performance boost. Without interleaving, there are $\sim$15\% increase in average latency and $\sim$20\% decrease in saturation injection rate. Compared with message-level interleaving, packet-level interleaving brings $\sim$10\% increase in saturation injection rate and less than 5\% decrease in average latency. In the configuration of 64-bit/cycle link bandwidth, the improvement of interleaving is more evident. This is because, in bandwidth-constrained scenarios, the improvement of bandwidth utilization brings more significant performance improvement.
+
+In general, interleaving is important for networks of chiplets, especially in bandwidth-constrained scenarios. Fine-grained interleaving performs better than coarse-grained interleaving, but this is achieved with more complex hardware.
+
+\section{Summary}
+\label{sec_summary}
+Seeing the limitations of the existing chiplet-based networks, a methodology to design more efficient and scalable multi-chiplet interconnect networks is proposed. Based on the new software-defined interface grouping method, a specification for connecting 2D-mesh-NoC-based chiplets into high-radix networks is presented. A deadlock-free adaptive routing algorithm based on MFR has been proposed for these networks. To overcome the potential limitations of the new approach, \textit{safe/unsafe} flow control and \textit{network interleaving} methods have been proposed. A chiplet-specific cycle-accurate C++ simulator is used to evaluate the new methodology. Many explorations under a variety of network configurations are conducted. The evaluation and exploration results demonstrate our approach's high performance and flexibility.

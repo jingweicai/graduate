@@ -1,0 +1,374 @@
+% !TeX root = ../thesis.tex
+
+\chapter{Background}
+\label{chap02:background}
+
+The two main areas covered in this thesis are the chiplet and the interconnection network. The interconnection network includes the on-chiplet network, on-package chiplet-level network, and off-package system-level network. In this section, the background and related works will be introduced.
+
+\nomenclature{MCM}{Multi-Chip Module, 多芯片集成}
+\nomenclature{SiP}{System-in-Package, 系统级封装}
+\nomenclature{RDL}{Redistribution Layer, 重分布层}
+\nomenclature{InFO}{Integrated Fan-Out, 集成扇出}
+
+\section{Chiplet Architecture}
+The conventional VLSI system is implemented on a monolithic silicon die. In recent years, packaging and high-speed wireline technologies have made great progress. Advanced packaging technologies provide a large interconnect base and a high volume of interconnection wires~\cite{Huang_WaferLevelSystem_2021, Shin-HuaChao_FineLineSpace_2016}; therefore, multiple chiplets can be interconnected and integrated at very high density and communication bandwidth. 
+The chiplet architecture refers to the structure and methodology of constructing computing systems by using chiplets and related technologies. The chiplet architecture is not an entirely new concept; rather, it is an aggregation of various technologies, including advanced integration and high-speed wireline, that have evolved alongside the development of the integrated circuit industry. 
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/INTRO/integration.pdf}
+  \caption{Advanced integration. (a) 2D integration; (b) 2.5D/3D integration.  \label{chap02:fig:integration}}
+\end{figure}
+
+\subsection{Advanced Integration}
+Driven by the demands for further scaling of hardware performance, integration (packaging) technologies have made great progress in the past few years. Advanced integration technologies are driving the development of chiplet architectures, and the parameter specifications of packages have become the most important hardware constraints for chiplet architectures.
+
+\subsubsection{2D Integration} Multi-chip integration is not a recent innovation but a technology that has been developed for decades. As shown in Figure~\ref{chap02:fig:integration}(a), the most traditional and widely-used packaging technology is assembling multiple dies on a unified substrate, also known as multi-chip module (MCM)~\cite{Lau_RecentAdvancesTrends_2019} or system-in-package (SiP)~\cite{Tai_SystemInPackageSIPChallenges_2000}. By combining with thin film processes, current advanced organic packaging can achieve a high density of 2/2um line/spacing~\cite{Islam_HighDensityUltraThin_2019}, which is hundreds of times higher compared to off-package interconnects.
+
+\nomenclature{CTE}{Coefficient of thermal expansion, 热膨胀系数}
+
+Conventional 2D packages are primarily based on organic substrates, made from resins (mostly glass-reinforced epoxy laminates) or plastics. In addition to limitations in interconnect density and substrate size, organic substrates have other disadvantages. First, the coefficient of thermal expansion (CTE) of organic substrates is $5\sim 8\times$ larger than that of silicon, so large chips can experience significant thermal stresses and thus shrink or warp when the temperature changes, leading to electrical connection failures~\cite{Valdevit_OrganicSubstratesFlipchip_2008}. Secondly, the poor heat resistance of organic substrates makes it difficult to integrate advanced high-power devices. Finally, the surface roughness of the organic substrate will have a negative impact on the performance of high-speed circuits; organic substrate wiring density and through-hole density are also lower, which is not conducive to wiring and high-speed signal transmission. Due to the many shortcomings of organic substrates, the glass core substrate is considered the next generation of substrate technology~\cite{Tummala_GlassPanelPackaging_2020}. Compared to organic substrates, glass substrates have a modulus of rigidity, coefficient of expansion, and other physical properties closer to silicon and, therefore, can ensure the stability and reliability of multi-core integrated systems in larger sizes. In addition, the glass substrate has better heat resistance and is capable of integrating advanced power transmission devices. 
+
+\nomenclature{CoWoS-R}{Chip-on-Wafer-on-Substrate-RDL}
+\nomenclature{HPC}{High-Performance Computing, 高性能计算}
+\nomenclature{EIC}{Embedded Interposer Carrier, 嵌入式中间层}
+
+\subsubsection{2.5D Integration}
+As shown in Figure~\ref{chap02:fig:integration}(b), the 2.5D integration is to interconnect chiplets by using passive interposers or bridges. These interposers or bridges are based on a redistribution layer (RDL) or silicon, and they provide much higher density interconnects compared with the substrate.
+
+\textbf{RDL-based 2.5D packaging.}
+RDL was first proposed to fan-in the circuitry from the original peripheral bond pads of a chip~\cite{Elenius_MethodFormingChip_2001}. In recent years, RDLs have also been used to connect multiple chiplets through additional metal and dielectric~\cite{Lin_MultilayerRDLInterposer_2019}. Taiwan Semiconductor Manufacturing Company (TSMC)'s integrated fan-out (InFO) is a typical RDL-based packaging technology achieving multi-layer high-density interconnects~\cite{Tseng_InFOWaferLevel_2016}. TSMC's chip-on-wafer-on-substrate-RDL (CoWoS-R) packaging technology is also RDL-based. The difference is InFO is chip-first while CoWoS-R is chip-last~\cite{Yu_IntegratedFanOutInFO_2022}. ``Chip-first'' means the dies are attached to a carrier before the redistribution layer (RDL) is formed, while ``chip-last'' means the RDL is formed first, and the dies are then placed on it. Other RDL-based packaging technologies include Amkor's silicon-wafer-integrated-fan-out-technology (SWIFT)~\cite{Jin_SubstrateSiliconWafer_2022} and Advanced Semiconductor Engineering (ASE, Chinese: 日月光)'s fan-out-chip-on-substrate (FOCoS)~\cite{Lee_AdvancedHDFOPackaging_2021}.
+
+\textbf{Silicon-Interposer-based 2.5D packaging.} Different from the RDL, the interposer is usually a large silicon die without active transistors, which has smaller gaps to the functional chiplets. Silicon interposer enables the proven fab-class sub-um interconnects for chiplet-to-chiplet connections and is suitable for very high-end high-performance computing (HPC) applications~\cite{Hou_WaferLevelIntegrationAdvanced_2017}. By the mask stitching technology, TSMC's CoWoS-S (Si interposer) technology provides high-performance interconnection on the 2500$mm^2$-area interposer, which can integrate large-scale computing and memory chiplets~\cite{Huang_WaferLevelSystem_2021}. Unimicron's embedded interposer carrier (EIC) technology uses glass rather than silicon, whose metrics are close to RDL-based technologies~\cite{Hu_EmbeddedGlassInterposer_2015}.
+
+\textbf{Embedded-bridge-based 2.5D packaging.} Besides using entire layers, small bridge dies with multiple routing layers can be used for interconnection. These bridges are embedded as parts of the substrate, providing high-density interconnects without introducing through-silicon-vias (TSVs). Intel's Embedded Multi-die Interconnect Bridge (EMIB) is a typical approach~\cite{Mahajan_EmbeddedMultidieInterconnect_2019,Liu_256GbMmshorelineAIBCompatible_2021} and other technologies include AME's sFOCoS~\cite{Lee_AdvancedHDFOPackaging_2021}, TSMC's CoWoS-L (Local Si interconnect), and Amkor's S-connect~\cite{Lee_SConnectFanoutInterposer_2021}. Compared to the large silicon interposer of conventional 2.5D packages, EMIB is only in the localized areas where they are needed, resulting in significant space savings. At the same time, there is no need to rely on expensive large silicon interposers as in 2.5D packages, thus reducing package manufacturing costs.
+
+\nomenclature{TDP}{Thermal Design Power, 热设计功耗}
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024SC/profile.pdf}
+  \caption{Profile of the InFO-SoW integration technology. Connectors and power modules are solder-joined to the InFO wafer. \label{chap08:fig:profile}}
+\end{figure}
+\textbf{Wafer-scale integration.} As shown in Figure~\ref{chap08:fig:profile}~\cite{Chun_InFO_SoWSystemonWaferHigh_2020}, by using Integrated-Fan-Out-System-on-Wafer (InFO-SoW) technology~\cite{DouglasYu_TSMCPackagingTechnologies_2021, Chun_InFO_SoWSystemonWaferHigh_2020}, tens of known-good chiplets, as well as power and thermal modules, are integrated into a whole wafer (diameter $300mm$). Compared with the traditional system, the wafer-scale integration eliminates the use of substrates and PCBs while achieving higher integration/interconnection density and energy efficiency. Unlike traditional systems that deliver power to the chip edges through PCBs, the wafer-scale integration delivers the power to the silicon vertically, which greatly enhances the power density to match the integration density. Dojo delivers 15kW~{\cite{Talpes_DOJOMicroarchitectureTeslas_2022}} and Cerebras delivers 23kW peak power to a wafer~{\cite{Cerebras_CerebrasCS2Revolution_}}. Power supply capacity up to 20kW is sufficient to support 64 traditional 300W thermal design power (TDP) chips. With existing wafer-scale heat dissipation technology, 1.2 W/mm2 sustained heat dissipation capability is achieved for a wafer, which can support chiplets on the wafer running at full loads. Since wafer-scale integration is vertically power-delivered and eliminates numerous substrates and PCBs, the power and cooling efficiency is also improved.
+
+\nomenclature{KGD}{Known-Good-Die, 已知良好的裸片}
+\nomenclature{TSV}{Through-Silicon-Via, 硅通孔}
+
+\subsubsection{3D Integration}
+
+3D heterogeneous integration breaks the scaling bottleneck from 2D/2.5D technology to system integration by stacking multiple chips vertically and enabling efficient interconnects. TSMC-SoIC integration technology utilizes an innovative no-bump direct bonding structure to support heterogeneous integration of known-good-die (KGD) chips of different sizes, functions, and process nodes\cite{Wu_1123DIntegrated_2024, TSMC_TSMCSoICTaiwanSemiconductor_}. Through ultra-high-density vertical stacking, TSMC-SoICs excel in improving performance, reducing power consumption, and minimizing resistance, inductance, and capacitance.
+
+Although 3D integration technology shows great potential for improving chip performance and functional density, it still faces multiple challenges in practical applications. In 3D stacked structures, multiple chips are vertically integrated, making it difficult to dissipate heat~\cite{Xie_DiestackingArchitecture_2015}. This can lead to overheating, affecting performance and shortening lifespan. 3D integration involves multiple layers of chips working together, which significantly increases the design complexity. Engineers need to consider more components, integration points, and longer interconnects, which can lead to high-frequency signal failures and reliability issues. Realizing high-density vertical interconnects requires sophisticated fabrication processes such as through-silicon vias (TSVs) and hybrid bonding technologies. The complexity of these processes can lead to reduced manufacturing yields and increased costs. Multi-layer stacking makes testing and troubleshooting of chips more difficult, and traditional test methods cannot effectively cover all layers. Despite these challenges, 3D integration technology is still considered an important way to break through the performance bottleneck of traditional 2D chips.
+
+\subsection{Die-to-Die Interfaces}
+\label{chap02:sec:interface}
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=0.99\linewidth]{../figures/2023MICRO/Serial-Parallel IF.pdf}
+  \caption{Microarchitecture comparison between serial interface and parallel interface. \label{chap05:fig:IF}}
+\end{figure}
+
+Since the system is partitioned into multiple chiplets, the die-to-die communication interface becomes the most significant component of the multi-chiplet system. Several technological routes have emerged in recent years~\cite{JEDEC_SerialInterfaceData_2017, _CommonElectricalCEI_2024, Sheikh_CHIPSAllianceAIB3D_2021, _AIBSpecification20_2022, _BunchWiresPHY_, _UniversalChipletInterconnect_2024, Ma_OpenHBISpecificationVersion_2021}. Parameters of four typical interfaces are shown in Table~\ref{chap05:tab:spec}, where $L_D$ is digital latency. A typical interface includes several functional layers. The internal communication protocol, such as AXI, is first converted to external protocols, such as Compute Express Link (CXL). Then, the on-chip data goes through multiple processes, including encoding, serializing, scrambling, and modulating, and finally becomes an analog signal leaving the chip. In this chapter, the interface is divided into two layers: the physical layer (PHY) and the protocol layer (Adapter). The adapter is connected to the internal node of the chiplet, i.e., the router of the on-chip network. The PHY is led off-chip and connected to the PHY of other chiplets. Chiplet-to-chiplet interfaces are classified into two categories according to the physical layer implementation.
+
+\begin{table}[tb]
+  \centering
+  \caption{Specification of typical die-to-die interface. \label{chap05:tab:spec}}
+  \begin{tabular}{ccccc}
+    \toprule
+    \textbf{Specification}     & \makecell{\textbf{SerDes}                                                                                                \\ \cite{_CommonElectricalCEI_2024, JEDEC_SerialInterfaceData_2017, Kehlet_AcceleratingInnovationStandard_, Synopsys_DesignWareDietoDie112G_2021}} & \makecell{\textbf{AIB} \\ \cite{Kehlet_AcceleratingInnovationStandard_, _AIBSpecification20_2022, Sheikh_CHIPSAllianceAIB3D_2021}}                     & \makecell{\textbf{BoW} \\ \cite{_BunchWiresPHY_, Farjadrad_BunchofWiresBoWInterface_2020, Ardalan_BunchWiresOpen_2020, Ardalan_OpenInterChipletCommunication_2021}} & \makecell{\textbf{UCIe}  \\ \cite{Sharma_UCIeWhitePaper_2022, Sharma_UniversalChipletInterconnect_2022, _UniversalChipletInterconnect_2024}} \\
+    \midrule
+    \textbf{Data\,Rate} (Gbps) & 112~\textcolor{green}{\ding{52}}         & 6.4~\textcolor{red}{\ding{56}}   & 32                              & 32                    \\
+    \textbf{Latency} (ns)      & 5.5+$L_D$+FEC~\textcolor{red}{\ding{56}} & 3.5~\textcolor{green}{\ding{52}} & 3+$L_D$+FEC                     & 2+$L_D$               \\
+    \textbf{Power} (pj/bit)    & 2~\textcolor{red}{\ding{56}}             & 0.5~\textcolor{green}{\ding{52}} & 0.7                             & 0.3\;\textbf{/}\;1.25 \\
+    \textbf{Reach} (mm)        & 50~\textcolor{green}{\ding{52}}          & 10~\textcolor{red}{\ding{56}}    & 50~\textcolor{green}{\ding{52}} & 2\;\textbf{/}\;25     \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\nomenclature{AIB}{Advanced Interface Bus, 高级接口总线}
+\nomenclature{CDR}{Clock \& Data Recovery, 时钟与数据恢复}
+\nomenclature{FEC}{Forward Error Correction, 前向纠错}
+\nomenclature{HBM}{High Bandwidth Memory, 高带宽内存}
+
+\subsubsection{Serial Interface}
+\textit{Serializer/Deserializer (SerDes)} is the typical example of serial interface~\cite{_SerDes_2022}. The microarchitecture of \textit{SerDes} is shown in Figure~\ref{chap05:fig:IF}(a). After encoding, the transmitter converts the on-chip parallel signal into a serial signal and sends it out at a very high frequency. After receiving the serial signal, the receiver restores it to the original parallel signal. \textit{SerDes} uses many anti-interference technologies, such as double-terminated differential lines, clock and data recovery (CDR), and forward error correction (FEC). Therefore, the data rate and transmission distance of \textit{SerDes} are much higher than that of the on-chip wire and off-chip non-terminated general-purpose I/O. However, with so many of these anti-interference modules, \textit{SerDes} has poor latency and energy metrics~\cite{_CommonElectricalCEI_2024, JEDEC_SerialInterfaceData_2017}. The characteristics of serial interfaces mainly include high data rate, long reach, high latency, and high power.
+
+\subsubsection{Parallel Interface}
+The typical microarchitecture of the parallel interface is shown in Figure~\ref{chap05:fig:IF}(b). The implementation of the physical layer is multiple CMOS-style non-terminated I/O, and the clocks of parallel interfaces are usually separate and synchronous. \textit{Advanced Interface Bus (AIB)} is the best-known parallel interface~\cite{Liu_256GbMmshorelineAIBCompatible_2021, Kehlet_AcceleratingInnovationStandard_,_AIBSpecification20_2022}. Designed specifically for chiplet, \textit{AIB} is low-power and low-latency compared with traditional off-chip interfaces. \textit{OpenHBI} is another parallel interface standard derived from \textit{High Bandwidth Memory (HBM)}. With thousands of synchronized ports, \textit{OpenHBI} has very high bandwidth, but it must be implemented on expensive silicon interposers~\cite{Ma_OpenHBISpecificationVersion_2021}. Due to issues such as synchronization clock and signal interference, the data rate per lane and the interconnection reach of parallel interfaces are limited. The characteristics of parallel interfaces mainly include low power, low latency, short reach, low data rate, and high port count (costly).
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.7\linewidth]{../figures/2023MICRO/Workloads.pdf}
+  \caption{Different workloads have different requirements for interfaces.  \label{chap05:fig:serial-parallel}}
+\end{figure}
+
+\nomenclature{UCIe}{Universal Chiplet Interconnect Express}
+
+\subsubsection{Compromised Interface} 
+Many emerging interfaces such as \textit{Bunch of Wires (BoW)} \cite{_BunchWiresPHY_, Farjadrad_BunchofWiresBoWInterface_2020, Ardalan_BunchWiresOpen_2020, Ardalan_OpenInterChipletCommunication_2021} and \textit{Universal Chiplet Interconnect Express (UCIe)} \cite{Sharma_UCIeWhitePaper_2022, Sharma_UniversalChipletInterconnect_2022, _UniversalChipletInterconnect_2024} are being developed to address the shortcomings of the traditional parallel and serial interfaces. The common features of these new technologies are the improvements based on advanced packaging technologies, but they still retain the limitations of the original technology route and sacrifice some good features. For example, \textit{BoW}, as a mixed version of the parallel and serial interfaces, has good latency and power efficiency, but the data rate is limited (32Gbps).
+
+\subsubsection{Interface Preference.}
+Interfaces are crucial to multi-chiplet systems. Once the interface is determined, the shape and scope of the system are limited to some extent. For example, if the parallel interface is adopted, the topology of the system must be flat, the scale must be limited, and expensive advanced packaging technology must be used. For low-cost (normal packaging) or high-radix-network demands, new chiplets have to be redeveloped. Modern applications have preferences for interfaces. As shown in Figure~\ref{chap05:fig:serial-parallel}, different workloads have different requirements for interfaces. For example, the parallel interface is suitable for the frequent local movement of small data, and the serial interface is suitable for the long-distance movement of large data. However, in most modern high-performance computing systems, these communication patterns occur simultaneously. Therefore, one uniform interface makes it hard to perfectly handle all workloads.
+
+
+\subsection{Chiplet Cost Model}
+
+\subsubsection{Yield Model}
+Yield has been an important topic since the advent of the integrated circuit industry. Poisson, Negative Binomial, and other models from the industry are used to provide a more accurate result when predicting yields of dies. Among these models, Seed's model and the Negative Binomial model are the most widely used in the same form of~\cite{Cunningham_UseEvaluationYield_1990}
+\begin{equation}
+  {\rm Yield_{~die}}=\left(1 + \frac{DS}{c}\right)^{-c} ,
+\end{equation}
+where $D$ is the defeat density, $S$ is the die area, and $c$ is the cluster parameter in the Negative Binomial model or the number of critical levels in Seed's model. Figure \ref{chap03:fig:yield} shows the yield-area and the cost-area relations of different technologies under this model. All costs are normalized to the cost per area of the raw wafer.
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=0.8\textwidth]{../figures/2022DAC/Yield.pdf}
+  \caption{Yield/Cost-Area relation of different technologies. \label{chap03:fig:yield}}
+\end{figure}
+
+The traditional SoC is manufactured in a serial production line, so the overall yield is estimated by continuous multiplication
+\begin{equation}
+  Y_{\rm ~overall} = Y_{\rm ~wafer} \times Y_{\rm ~die} \times Y_{\rm ~packaging} \times Y_{\rm ~test} .
+\end{equation}
+However, for the multi-chiplet system, yield cannot be estimated by simple multiplication because of the more complex manufacturing flow.
+
+\subsubsection{Cost and Chiplet Reuse}
+The total cost of VLSI systems can be roughly divided into two kinds: non-recurring engineering (NRE) cost and recurring engineering (RE) cost. NRE cost refers to the one-time cost of designing a VLSI system, including software, IP licensing, module/chip/package design, verification, masks, etc. RE cost refers to the fabrication costs for massive production, including wafers, packaging, test, etc. One VLSI system's final engineering cost consists of the RE and the amortized NRE cost. Amortization is mainly related to the proportion of quantity. The basic concept is that if the production quantity is small, the NRE cost is dominant; otherwise, the NRE cost is negligible if the quantity is large enough.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.7\linewidth]{../figures/2023HPCA/scales.pdf}
+  \caption{Chiplet reuse in different scale systems for different workloads. In different scenarios, the same task requires different computing scales. \label{chap04:fig:scale}}
+\end{figure}
+
+Chiplet reuse is another attractive characteristic of chiplet architecture. Significant design costs can be saved by reusing chiplets within a single system and between multiple systems~\cite{Stow_CostAnalysisCostdriven_2016}. As shown in Figure~\ref{chap04:fig:scale}, the scale of modern computing systems varies under different work scenarios. Edge AI computer Jetson Nano contains 128 CUDA cores~\cite{NVIDIA_JetsonNanoDeveloper_} while datacenter system DGX integrates eight 6912-core A100~\cite{NVIDIA_NVIDIADGXA100_, Choquette_32A100Datacenter_2021}. If a single AI chiplet can cover all scenarios from 0.5 TFLOPs to 5 PFLOPs, huge cost savings can be achieved. Zimmer \textit{et al.} present the multi-chip-module-based DNN inference accelerator~\cite{Shao_SimbaScalingDeepLearning_2019, Zimmer_032128TOPSScalable_2020}, which can scale from 0.32 to 128 TOPS. Ignjatović \textit{et al.} present the wormhole AI training processor~\cite{Ignjatovic_WormholeAITraining_2022}, which can also scale from one chip into a large 2D processing grid. 
+
+
+
+\section{Interconnection Networks} 
+The interconnection network is an indispensable part of all parallel computing systems. The communication between any pair of components in the system must be through the interconnection network. Therefore, efficient network design are essential to system performance. In this section, the basic concepts and theory of interconnection networks will be introduced.
+
+\subsection{Topology} The connection pattern of nodes defines the network’s topology~\cite{Dally_PrinciplesPracticesInterconnection_2004}, which is the most important factor affecting network performance. Basically, topology can be classified into four types: shared-medium networks, direct networks, indirect networks, and hybrid networks~\cite{Duato_InterconnectionNetworksEngineering_2003}. The bus is a typical shared-medium network, which is shared by all communicating devices. In direct networks, all devices are connected by direct point-to-point links; any communication between non-neighboring devices requires transmitting the information through several intermediate devices. In indirect networks, all devices are connected by extra switches, and these switches are usually connected by point-to-point links. Besides, hybrid approaches are possible.
+
+\subsubsection{Diameter}
+Diameter, which is the largest minimal path hop count over all pairs of terminal nodes in the network, is one of the most important metrics for network topology. The diameters of several typical topologies are shown in Table~\ref{table:diameter}. For an $N$ node network, 2D-mesh has a long diameter of $2(\sqrt{N}-1)$ while hypercube has a shorter diameter of $\log_{2}{N}$. For indirect networks such as Dragonfly~\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008}, the diameter is often measured from the source switch to the destination switch, and there are two more hops between the terminal node and the switch.
+
+\begin{table}[ht]\small
+  \centering
+  \caption{Network diameter of different topologies. }
+  \label{table:diameter}
+  \begin{tabular}{cccccc}
+    \toprule
+    \textbf{2D-Mesh} & \textbf{2D-Torus} & \textbf{nD-Mesh}   & \textbf{Hypercube}~\cite{Saad_TopologicalPropertiesHypercubes_1988} & \textbf{Dragonfly}~\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008} & \textbf{2D-HyperX}~\cite{Ahn_HyperXTopologyRouting_2009} \\
+    \midrule
+    $2(\sqrt{N}-1)$  & $\sqrt{N}$        & $n(\sqrt[n]{N}-1)$ & $\log_{2}{N}$      & 3+2               & 2+2                \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The diameter bounds the lowest latency of the farthest transmission. In other words, no matter what routing and flow control is used, it is not possible to optimize all transmission latency to be less than that dictated by the network diameter. It's worth noting that the cost of different hops in the diameter may vary. For example, the two local hops of the Dragonfly topology are much cheaper in cost and latency than the one global hop.
+
+\subsubsection{Bisection Bandwidth}
+Bisection bandwidth is another important metric for topology, which is defined as the minimum number of bandwidth (wires) that need to be cut when dividing a network into two equal sets of nodes. In general cases, bisection bandwidth is the bottleneck for global communication; therefore, the theoretical throughput bound of a topology is defined by the bisection bandwidth. With random traffic, half of the traffic must cross the bisection of the network. Therefore, the traffic per node cannot exceed $\frac{2B_c}{N}$~\cite{Dally_PrinciplesPracticesInterconnection_2004}, where $B_c$ is the bisection bandwidth and $N$ is the total number of nodes. No matter what routing and flow control is used, the throughput cannot exceed this bound.
+
+\subsection{Routing Theory}
+\label{sec:routing} 
+\subsubsection{Nomenclature of Routing}
+Once a topology is established, multiple potential paths, comprising various sequences of nodes and channels, can be used to reach a message's destination. Routing is the process of selecting the actual path a message follows through the network. In addition to ensuring high-performance connectivity of the network, the routing algorithm should also ensure deadlock-free. Some necessary routing theories are introduced in this subsection.
+
+An interconnection network $I$ is a strongly connected directed multigraph, $I = G(N, C)$. The vertices of the multigraph $N$ represent the set of processing nodes (routers). The edges of the multigraph $C$ represent the set of communication channels. More than a single channel is allowed to connect a given pair of nodes. Each router has several input channels and output channels.
+
+\begin{definition}
+  \label{adaptive-routing}
+  An routing function $R: N \times N \rightarrow \mathcal{P}(C)$, where $N$ represents the set of all network nodes and $\mathcal{P}(C)$ is the power set of the set $C$ of all output channels, supplies a set of alternative output channels to send a message from the current node $n_c$ to the destination node $n_d$, $R(n_c,n_d ) = \{c1,c2,...\}$. If for each $n_c, n_d$, $|R(n_c,n_d )|=1$, the routing function $R$ is deterministic; otherwise, If $\exists n_c, n_d$, $|R(n_c,n_d )|>1$, it is adaptive.
+\end{definition}
+
+As stated in Definition~\ref{adaptive-routing}~\cite{Dally_DeadlockFreeMessageRouting_1987, Duato_InterconnectionNetworksEngineering_2003}, for any message in the input channel, the router (routing algorithm $R$) is supposed to give a set of alternative output channels for the message to leave. If it is possible to establish a path between any pair of nodes (routers) using channels belonging to the sets supplied by $R$, then $R$ for the given network $I$ is connected.
+
+\subsubsection{Deadlock-Free Routing} 
+\begin{definition}
+  \label{channel-dependency}
+  A \textit{channel dependency graph} $D$ for a given interconnection network $I$ and routing function $R$ is a directed graph $D = G(C, E)$. The vertices of $D$ are the channels of $I$. The edges of $D$, are the pairs of (virtual) channels connected by $R$ (channel dependency):  
+  $$E = \{(c_i, c_j) \mid \mathbf{R}(c_i, n) = c_j \text{ for some } n \in N \}$$
+\end{definition}
+Deadlock is one of the most critical issues of routing. A deadlock occurs when some packets cannot advance toward their destination because the buffers requested by them are full. As a result, all packets involved in the deadlocked configuration become permanently blocked, unable to move forward. Since deadlock is fatal for networks, it is important to ensure that routing algorithms are deadlock-free. As stated in Definition~\ref{channel-dependency}, the formalized description of deadlock-free routing relies on the concept of virtual channel and channel dependency~\cite{Dally_DeadlockFreeMessageRouting_1987}.
+\begin{theorem}
+  \label{theorem:dally}
+  A deterministic routing function $R$ for an interconnection network $I$ is deadlock-free if and only if there are no cycles in the channel dependency graph $D$.
+\end{theorem}
+Obviously, if there were cycles in the channel dependency graph $D$, deadlocks may occur, and the routing algorithm $R$ on $I$ is not deadlock-free. As stated in Theorem~\ref{theorem:dally}, Dally \textit{et al.} gives the necessary and sufficient condition for deadlock-free deterministic routing algorithms~\cite{Dally_DeadlockFreeMessageRouting_1987}.
+
+\begin{theorem}
+  \label{theorem:duato}
+  A routing function $R$ for an interconnection network $I$ is deadlock-free if and only if there exists a routing sub-function $R_1\subset R$ that is connected and has no cycles in its extended channel dependency graph.
+\end{theorem}
+Duato \textit{et al.} generalizes this theorem to adaptive routing algorithms by introducing the extended channel dependency graph where all the vertices belong to a subset of channels $C_1 \subseteq C$~\cite{Duato_InterconnectionNetworksEngineering_2003}. The word “extended” means that packets are allowed to use all the channels in the network. Theorem~\ref{theorem:duato} is valid for both deterministic and adaptive routing. It is worth noting that the above theorem holds with assumptions (\textit{e.g.,} a message arriving at its destination node is supposed to be consumed in finite time) that are not overly explained in this thesis~\cite{Duato_InterconnectionNetworksEngineering_2003}.
+
+\begin{theorem}
+  \label{theorem:duato-protocol}
+  An adaptive routing function $R$ for an interconnection network $I$ is deadlock-free if there exists a channel subset $C_0 \subseteq C$ such that the routing subfunction $R_0(x, y)=R(x, y) \cap C_0 \ \forall x, y \in N$ is connected and deadlock-free.
+\end{theorem}
+Furthermore, Duato \textit{et al.} give a sufficient condition for deadlock-free adaptive routing algorithms for arbitrary interconnect networks~\cite{Dally_DeadlockFreeMessageRouting_1987, Duato_InterconnectionNetworksEngineering_2003}. As stated in Theorem~\ref{theorem:duato-protocol}, if a connected and deadlock-free routing function exists on a channel subset, then the problem of deadlock-free routing for interconnected systems is solved. Besides, this theorem also indicates that any number of extra virtual or physical channels can be added to an existing connected deadlock-free routing function, and the resulting routing functions are still deadlock-free.
+
+The other protocol-level deadlocks mainly caused by the communication protocol~\cite{Nagarajan_PrimerMemoryConsistency_2020, Farrokhbakht_PitstopEnablingVirtual_2021} are not discussed further in this thesis. Besides deadlock, livelocked packets continue to move in the network but never reach the destinations, which is usually caused by the use of non-minimal paths~\cite{Dally_PrinciplesPracticesInterconnection_2004, Duato_InterconnectionNetworksEngineering_2003}. The routing algorithms are also supposed to be livelock-free.
+
+\subsubsection{Non-minimal Routing} Typical routing algorithms do minimal routing, which always choose the shortest patch towards destination. Usually, minimal routing algorithms have lower latency, consume fewer network resources, and do not cause livelocks. However, minimal routing is not always feasible in the case of node/link failure. Besides, minimal routing will cause congestion and waste bandwidth when traffic is unbalanced~\cite{McDonald_PracticalEfficientIncremental_2019,Kim_TechnologyDrivenHighlyScalableDragonfly_2008, Kasan_DynamicGlobalAdaptive_2022}. For example, if all the traffic is between two specific groups in the Dragonfly topology, they will be routed through the only direct global channel by minimal routing. Therefore, non-minimal routing algorithms are necessary, especially for high-radix topologies.
+
+\nomenclature{UGAL}{Universal Global Adaptive Load-balancing, 通用全局自适应负载均衡}
+\nomenclature{PAR}{Progressive Adaptive Routing, 渐进自适应路由}
+
+There are many existing non-minimal adaptive routing algorithms, including Universal Global Adaptive Load-balancing (UGAL)~\cite{Singh_LoadBalancedRoutingInterconnection_2005} and Progressive Adaptive Routing (PAR)~\cite{Jiang_IndirectAdaptiveRouting_2009}. Compared with minimal routing, non-minimal adaptive routing algorithms provide higher performance under specific traffic but have more complex deadlock conditions and typically require more virtual channels.
+
+\subsubsection{Interleaving/Multi-Path Routing}
+Interleaving has been widely used in modern high-performance computer systems, especially in memory systems~\cite{Burnett_StudyInterleavedMemory_1970, Briggs_EffectivenessPrivateCaches_1983}. There is always an upper limit to the bandwidth or capacity of a single storage; Therefore, it is necessary to introduce the concept of multi-channel. By introducing multiple controllers and storage that can be accessed concurrently, the total throughput of the system is greatly improved. However, if the addresses of multiple controllers are arranged in sequence, due to the locality of data, only one controller is active for each access~\cite{Rau_PseudorandomlyInterleavedMemory_1991}. The bandwidth benefits of multi-channel are underutilized. As a result, methods to interleave addresses and distribute data across multiple controllers are proposed, such as interleaved memory and RAID technology~\cite{Chen_MaximizingPerformanceStriped_1990}.
+
+Multipath routing involves the use of multiple simultaneous paths to transmit data between nodes in a network. This approach enhances bandwidth utilization, fault tolerance, and load balancing. Equal-Cost Multipath routing distributes traffic evenly across multiple paths that have the same cost, effectively balancing the load and preventing congestion~\cite{Besta_HighPerformanceRoutingMultipathing_2021,Hopps_AnalysisEqualCostMultiPath_2000}. Adaptive routing protocols dynamically adjust paths based on current network conditions, such as congestion or failures, to optimize data flow. For example, in the Jellyfish network topology, path selection and routing mechanisms are designed to handle dynamic traffic patterns efficiently~\cite{ALzaid_MultiPathRoutingJellyfish_2021}.
+
+Chiplet-based interconnect networks have similar problems. The off-chip bandwidth is often more scarce than the on-chip bandwidth, which makes the inter-chiplet communication become the bottleneck of the entire interconnection network. In order to improve communication efficiency or to increase fault tolerance, the connection between two chiplets is usually more than one channel. Multiple channels are usually on multiple controllers or even on different internal nodes. Traditionally, a message can only be transferred through one channel, which will seriously waste the costly off-chip bandwidth.
+\subsection{Chiplet-based Interconnection Network Architecture}
+Advanced packaging and high-speed wireline technologies have significantly progressed, thus allowing chips to be integrated at ultra-high scale and density~\cite{DouglasYu_TSMCPackagingTechnologies_2021}. The Chiplet technologies significantly impact the interconnection network architecture.
+
+
+In traditional interconnection systems, on-chip and off-chip networks are usually decoupled. As shown in Figure~\ref{chap06:fig:architecture}(a), on-chip networks are connected to a switch, and the off-chip network is constructed among multiple switches. Most switch-based datacenter networks, including \textit{Fat-tree}~\cite{Barroso_DatacenterComputerDesigning_2019, Xia_SurveyDataCenter_2017}, \textit{Slingshot}~\cite{DeSensi_InDepthAnalysisSlingshot_2020, Kim_TechnologyDrivenHighlyScalableDragonfly_2008}, and \textit{NVIDIA HGX}~\cite{Ishii_NvlinkNetworkSwitchNvidias_2022}, adopt this architecture; therefore, the overall network performance can be measured among the network interface controllers (NICs) regardless of the network-on-chip (NoC). Besides, some high-performance computing (HPC) interconnection networks adopt direct switch-less topologies, \textit{e.g. Torus}. As shown in Figure~\ref{chap06:fig:architecture}(b), most of them, including \textit{TPUv4}~\cite{Jouppi_TPUV4Optically_2023} and \textit{TofuD}~\cite{Ajima_TofuInterconnect_2018}, implement an I/O router to centralize all interconnection channels, thus also isolating on-chip and off-chip networks. However, emerging advanced packaging technologies allow ultra-high-density integration and connectivity of multiple chips, thus breaking the on/off-chip boundary. As shown in Figure~\ref{chap06:fig:architecture}(c), multiple on-chiplet networks are tightly connected by numerous physical channels.  As a result, the on-chip and off-chip networks of chiplet-based systems must be designed and evaluated jointly rather than separately.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024ATC/architecture.pdf}
+  \caption{Comparison of different interconnection architectures. (a) On/off-chip networks are isolated by switches. (b) On/off-chip networks are isolated by I/O routers. (c) On/off-chip networks in chiplet-based systems are tightly coupled.  \label{chap06:fig:architecture}}
+\end{figure}
+
+\section{Related Works}
+\subsection{Chiplet-based Systems}
+Vivet \textit{et al.} present the first CMOS active interposer, integrating: 1) power management without any external components; 2) distributed interconnects enabling any chiplet-to-chiplet communication; and 3) system infrastructure, design-for-test, and circuit IOs. The INTACT circuit prototype integrates six chiplets in FDSOI 28-nm technology, which are 3D-stacked onto this active interposer~\cite{Vivet_IntAct96CoreProcessor_2021}.
+
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/INTRO/AMD.png}
+  \caption{Mapping of AMD chiplets to multiple families of high-performance products. \label{figure:AMD}}
+\end{figure}
+
+AMD is taking the methodology of chiplet-based architectures and applying it to design real, high-volume, commercially successful products, including EPYC\texttrademark \, and Ryzen\texttrademark \, processors. Figure~\ref{figure:AMD} shows an illustration of how their chiplet-enabled approach enables a wide variety of products using a few individual chiplet designs. AMD has been able to creatively combine chiplets with a range of packaging solutions to produce a rich portfolio of products across a wide range of markets, create solutions that would be infeasible with monolithic designs (e.g., 64-core server), and does so while delivering great performance and value~\cite{Naffziger_PioneeringChipletTechnology_2021}.
+
+Intel launches A Multi-Tile 3D Stacked Processor for Exascale Computing called Ponte Vecchio (PVC)~\cite{Gomes_PonteVecchioMultiTile_2022}. PVC is a heterogeneous peta-OP 3D processor comprising 47 functional tiles on five process nodes. The tiles are connected with Foveros [1] and EMIB [2] to operate as a single monolithic implementation, enabling a scalable class of Exascale supercomputers. The PVC design contains >100B transistors and is composed of sixteen TSMC N5 compute tiles, and eight Intel 7 memory tiles optimized for random access bandwidth-optimized SRAM tiles (RAMBO) 3D stacked on two Intel 7 Foveros base dies. Eight HBM2E memory tiles and two TSMC N7 SerDes connectivity tiles are connected to the base dies with 11 dense embedded interconnect bridges (EMIB).
+
+Huawei launches the First 7-nm Chiplet-based 64-core ARM SoC for cloud services Kunpeng 920. Kunpeng 920 is able to achieve cost efficiency for various workloads through using a variety of chiplets and hybrid process technologies. The unique recompositions of these flexible chipsets allow new designs to be created~\cite{Xia_Kunpeng920First_2021}.
+
+Tesla presents the \textit{Dojo} supercomputer, which consists of tens of tiles. Each tile is a wafer-scale system consisting of 25 D1 compute dies and 40 I/O dies. The total off-chip bandwidth per D1 die reaches 1576 Tb/s (576 lanes of 112G SerDes per chip), and the entire tile provides more than 36 TB/s aggregate bandwidth~\cite{Talpes_DOJOMicroarchitectureTeslas_2022,Talpes_MicroarchitectureDOJOTeslas_2023}.
+
+\subsection{Network Architecture}
+\subsubsection{Minus-First Routing (MFR) with Safe/Unsafe Flow-Control} 
+
+The MFR is a general approach for designing deadlock-free routing on any topology~\cite{Schroeder_AutonetHighspeedSelfconfiguring_1991, Xiang_DeadlockFreeBroadcastRouting_2016}.
+By giving each node a unique and comparable label, all physical or virtual channels are classified into \textit{plus} channels or \textit{minus} channels. If any packet cannot switch from a \textit{plus} channel to a \textit{minus} channel, then deadlock is prohibited. The common \textit{negative-first routing on 2D-mesh}, also known as \textit{turn-restriction routing}~\cite{Glass_TurnModelAdaptive_1992}, is a special case of the MFR.
+However, the MFR has limitations. For some topologies and labeling, legal paths between some source-destination pairs may not exist, or some legal paths are non-minimal. The \textit{safe/unsafe} flow-control is a gap-filling method that allows some \textit{minus-first} routing paths to not exist while achieving deadlock-free minimal routing.
+\begin{definition}
+  \label{def:safe}
+  A packet is delivered and kept in the next input port as \textit{safe} if there is a minus-first path from the current channel to the destination; otherwise, the packet is \textit{unsafe}.
+\end{definition}
+\begin{figure}[htb]
+\centering
+\begin{minipage}{.6\linewidth}
+\begin{algorithm}[H]
+  \begin{algorithmic}[1]
+    \REQUIRE Whether current packet is safe or unsafe: $p$, \\ the number of buffers that hold safe packets: $s$, \\ the number of free buffers: $f$.
+    \IF{$f \geq 2$}
+    \RETURN True;
+    \ELSIF{$f=1$ \textbf{and} ($p$ is safe \textbf{or}  $s \geq 1$)}
+    \RETURN True;
+    % \ELSIF{$f=1$ and $(p \text{ is unsafe})$ and }
+    % \RETURN True;
+    \ELSE
+    \RETURN False;
+    \ENDIF
+  \end{algorithmic}
+  \caption{\scshape Safe/Unsafe Flow-Control \label{alg:flow-control}}
+\end{algorithm}
+\end{minipage}
+\end{figure}
+
+If there are at least two unclassified buffers (queues) at each input port, the definition of the \textit{safety of packets} is described in Definition~\ref{def:safe}, and the details of the flow-control are shown in Algorithm~\ref{alg:flow-control}. In brief, buffers cannot be filled with \textit{unsafe} packets; therefore, \textit{safe} packets with deadlock-free paths cannot be blocked by \textit{unsafe} packets. As a result, Lemma~\ref{lemma:flow-control} is stated~\cite{Luo_EfficientAdaptiveDeadlockFree_2012}.
+\begin{lemma}
+  \label{lemma:flow-control}
+  For each topology and labeling, the minimal adaptive routing with MFR-based safe/unsafe flow-control is deadlock-free if \textit{unsafe} packets cannot form a dependency circle.
+\end{lemma}
+
+\subsubsection{Router-Less NoC}
+Modern high-performance networks are based on the router, which is powerful but consumes large amounts of area, power, and latency~\cite{Kumary_46Tbits36GHzSinglecycle_2007,Hoskote_5GHzMeshInterconnect_2007,Howard_48CoreIA32Processor_2011, Farrokhbakht_UBERNoCUnifiedBuffer_2019}. A long-distance transmission across a large NoC requires tens of hops. Going through the complete router logic at every hop along the path is costly and unnecessary. Therefore, many NoC architectures have been proposed to eliminate these overheads by removing routers. Hierarchical buses~\cite{Udipi_ScalableEnergyefficientBusbased_2010} and hierarchical rings~\cite{Fallin_HighPerformanceHierarchicalRing_2011} are two straightforward methods with limited scalability. Another emerging route-less NoC architecture \textit{Isolated Multiple Rings (IMR)} deploys a set of overlapping but isolated register-insertion rings, each of which connects a subset of all nodes~\cite{Liu_IMRHighPerformanceLowCost_2016,Alazemi_RouterlessNetworkonChip_2018,Lin_DeepReinforcementLearning_2020}. For any source-destination node pair, the IMR method ensures that they are co-located on at least one of the rings; therefore, the packets can reach the destination by injecting into the ring and forwarding along the ring. The router-less network not only reduces hardware overheads but also enhances performance. As shown in Figure~\ref{chap07:fig:router-less}, transmission takes only one cycle (pipeline stage) per hop in the router-less network while costs multiple cycles (pipeline stages) per hop in the router-based network. The router-less ring can also run at a higher frequency. As a result, even over longer paths (more hops), the IMR-based network has lower latency/energy/area overhead compared with the complex router-based network.
+
+Nevertheless, the IMR-based router-less network has significant limitations. \textbf{1)} The scale of the router-less networks is limited. $n\times n$ is the max size that can be supported with ring overlapping of $n$~\cite{Alazemi_RouterlessNetworkonChip_2018,Lin_DeepReinforcementLearning_2020}. It is also difficult to allow many wires/interconnects between chips; thus, IMR is not suitable for multi-chip networks \textbf{2)} Reducing the number of overlapping rings significantly increases the average hop count (diameter), and the rings are pre-defined; thus, the topology and routing are not adjustable. \textbf{3)} The design space is so complex that deep reinforcement learning must be used~\cite{Lin_DeepReinforcementLearning_2020}. It is unverified whether a feasible/optimal design can be found for a large-scale network. All these deficiencies are due to the complete lack of routers. Therefore, a better approach is to keep the routers to provide necessary routing while reducing router usage frequency and overhead, with the ultimate goal of overall performance and energy efficiency.
+
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../figures/2024MICRO/router-less.pdf}
+  \caption{Comparison between router-less and router-based network. Lower latency/energy/area/ overhead due to the simpler logic of the ring, even over longer paths (more hops). \label{chap07:fig:router-less}}
+\end{figure}
+
+In the last of this subsection, a brief introduction is given on why the register-insertion ring is deadlock-free. Any source-destination pair must be co-located on one ring. A packet can only be injected into the ring when there is enough space to buffer the full packet. Therefore, flits injected into the ring can always move forward until reaching the destination without congestion/deadlock (similar to bubble flow control~\cite{LizhongChen_WormBubbleFlowControl_2013}). A potential issue is the competition for ejection channels if there are multiple overlapping rings. Nevertheless, a packet that is not ejected in time can be delivered along the ring one more round, thus still deadlock-free.
+
+\subsubsection{Chiplet-based Network Architecture}
+
+A few works have been done to address the routing challenges for chiplet-based networks. Yin \textit{et al.} presented a new routing method for multi-chiplet systems based on turn restrictions~\cite{Yin_ModularRoutingDesign_2018}, but this approach requires significant modifications to hardware and can lead to imbalanced traffic. Majumder \textit{et al.} proposed \textit{Remote Control} to solve deadlock problems~\cite{Majumder_RemoteControlSimple_2021}, but large buffers are needed to store all outbound packets. There are also deadlock recovery techniques such as \textit{Pitstop}~\cite{Farrokhbakht_PitstopEnablingVirtual_2021} and \textit{UPP}~\cite{Wu_UpwardPacketPopup_2022}, but they all need custom hardware and spare resources.  These works provide solutions to cross-chiplet deadlocks but do not provide a high-performance and scalable solution for multi-chiplet interconnections.
+
+As for the scalability challenge of chiplet-based networks, Zheng~\textit{et al.} proposed \textit{Adapt-NoC} with adaptable links and routers to change the topologies of the sub-networks, but such adaptation is very limited, and the topologies are still flat~\cite{Zheng_VersatileFlexibleChipletbased_2020}. Shao \textit{et al.} presented a scalable deep neural network (DNN) accelerator called \textit{Simba} based on hierarchical 2D-mesh~\cite{Shao_SimbaScalingDeepLearning_2019, Zimmer_032128TOPSScalable_2020}. Other scalable chiplet-based systems in the industry are also based on 2D-mesh~\cite{Chang_DOJOSuperComputeSystem_2022, Talpes_DOJOMicroarchitectureTeslas_2022, Ignjatovic_WormholeAITraining_2022}.  Although these works have achieved sizeable systems by a single chiplet, they have not fully exploited advanced packaging technologies to design more efficient interconnection networks. 
+
+\subsubsection{Existing Supercomputer/Datacenter Network Architectures}
+\begin{figure}[tbh]
+  \centering
+  \includegraphics[width=0.98\linewidth]{../figures/2024SC/slingshot.pdf}
+  \caption{The Dragonfly-based Slingshot topology. Switches are fully connected within groups, and groups are also all-to-all connected. \label{chap08:fig:slingshot}}
+\end{figure}
+\textbf{Dragonfly.} Many supercomputers, including El Capitan(\#1), Frontier (\#2), and Aurora (\#3) of Top 500, adopt the Slingshot interconnect~\cite{_November2023TOP500_}. As shown in Figure~\ref{chap08:fig:slingshot}, the \textit{Dragonfly} is the default topology for Slingshot~\cite{Kim_TechnologyDrivenHighlyScalableDragonfly_2008, DeSensi_InDepthAnalysisSlingshot_2020}. Several switches are fully connected to each other, forming a group, and multiple groups are also all-to-all connected. The Dragonfly topology is highly scalable because the diameter stays constant (3 switch-to-switch hops) as the scale increases. Using 17440 64-port switches, the Dragonfly can hold up to 279040 nodes (terminals) at full global bandwidth. 
+
+\textbf{Fat-Tree.} Sierra and Summit are the two fastest supercomputers at the time being~\cite{_November2023TOP500_}. These two systems all utilize InfiniBand-based interconnect in the Fat-Tree network topology~\cite{Stunkel_HighspeedNetworksSummit_2020}.
+In a Fat-Tree network, the bandwidth of the switch to higher-level switching layers can be the same as the bandwidth to the computing nodes, thus achieving global full throughput.
+Compared with the Dragonfly topology, Fat-Tree has a longer diameter (4 switch-to-switch hops for three-level Fat-Tree) and is slightly less scalable ($k^3/4$ vs. $k^4/64$, where $k$ is the switch radix). However, traffic isolation is difficult for the Dragonfly topology since non-minimal routing is necessary for many traffic patterns. The Fat-Tree can isolate traffic among different subsystems, providing more predictable application performance; therefore, the Fat-Tree is more popular than the Dragonfly in current data centers.
+
+\textbf{Diameter-Two Topologies.} The two-dimensional HyperX (also known as generalized
+Hypercube) is a direct diameter-two topology resulting from 2D fully-connected graphs~\cite{Ahn_HyperXTopologyRouting_2009}. Slim Fly~\cite{Besta_SlimFlyCost_2014} and PolarFly~\cite{Lakhotia_PolarFlyCostEffectiveFlexible_2022} are two topologies towards Moore bound. PolarFly leverages silicon-photonic co-package~\cite{Maniotis_ScalingHPCNetworks_2020,Minkenberg_CopackagedDatacenterOptics_2021} to achieve more than 96\% of the theoretical peak with cost-effectiveness, which is a good example of innovating interconnection architecture through new technologies.
+
+\textbf{HammingMesh.} People have noted that the injection bandwidth of existing switch-based networks is under-provisioned while current high-end AI chips have abundant IO and switching capability~\cite{Hoefler_HammingMeshNetworkTopology_2022}. Using local 2D-mesh networks and global Fat-Trees, the \textit{HammingMesh} provides high All-Reduce bandwidth at a low cost with high scheduling flexibility.
+
+\begin{table}[t]
+  \fontsize{9pt}{10pt}\selectfont
+  \centering
+  \setlength{\tabcolsep}{2pt}
+  \caption{Comparison of existing network simulators. \protect\footnotemark[1]``Scalability'' is the largest scale of network that the simulator supports. \protect\footnotemark[2]Parallel simulation is achieved by manual partitioning and MPI communication protocol. \label{chap06:tab:comparison}}
+  \begin{tabular}{ccccl}
+      \toprule
+      \textbf{Simulator}                                                                                                                               & \textbf{Language} & \textbf{Parallelism} & \textbf{Scalability [\#\,Nodes]}\footnotemark[1]              & \textbf{Special Features}                                                                                         \\
+      \midrule
+      BookSim~\cite{Jiang_DetailedFlexibleCycleaccurate_2013}                                                                                          & C/C++             & No                   & $10,000$~\cite{Besta_SlimFlyCost_2014}                        & Cycle-accurate, validated against RTL.                                                               \\
+      Noxim~\cite{Catania_NoximOpenExtensible_2015}                                                                                                    & SystemC           & No                   & $256$~\cite{Catania_CycleAccurateNetworkChip_2016}            & Cycle-accurate, wireless NoC.                                                                 \\
+      DARSIM~\cite{Lis_DARSIMParallelCyclelevel_2010}                                                                                                  & C/C++             & Yes                  & $64$                                                          & $5\times$ speedup by $8$ threads.                                                                                 \\
+      Garnet~\cite{Agarwal_GARNETDetailedOnchip_2009,Bharadwaj_KiteFamilyHeterogeneous_2020}                                                           & C/C++             & No                   & $64$~\cite{Bharadwaj_KiteFamilyHeterogeneous_2020}            & Gem5-based, multiple clock-domain.                                                   \\
+      HNOCS~\cite{Ben-Itzhak_HNOCSModularOpensource_2012}                                                                 & C/C++             & Yes\footnotemark[2]  & $64$~\cite{Ben-Itzhak_HNOCSModularOpensource_2012}    &  Cycle-accurate, based on OMNET++. \\
+      \midrule
+      \textbf{CNSim (Chapter~\ref{chap06:cnsim}})                                                                                                                               & C/C++             & Yes                  & $\geq 279,040$                                                     & Cycle-accurate, multi-threading.                                                                \\
+      \midrule
+      OMNeT++~\cite{_OMNeTDiscreteEvent_}                                                                 & C/C++             & Yes\footnotemark[2]  & $17,000$~\cite{Besta_MillionServerNetworkSimulations_2021}    & Extensive functionality. \\
+      NS-3~\cite{_Ns3NetworkSimulator_}                                                                                                           & C/C++             & Yes\footnotemark[2]  & $5,000$~\cite{Pelkey_DistributedSimulationMPI_2011}           & Extensive functionality.                                                                       \\
+      SST~\cite{Rodrigues_StructuralSimulationToolkit_2011}                                                                                            & C/C++             & Yes\footnotemark[2]  & $110,592$~\cite{Groves_SAIStalledActive_2016}                 & Modular, MPI-based parallel simulation.                                                          \\
+      ROSS/CODES~\cite{Carothers_ROSSHighperformanceLowmemory_2002, Carothers_EnablingCoDesignMultiLayer_2015,Mubarak_EnablingParallelSimulation_2017} & C/C++             & Yes\footnotemark[2]  & $50,000,000$~\cite{Mubarak_ModelingMillionNodeDragonfly_2012} & Scalable, MPI-based parallel simulation.                                                                          \\
+      \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Network Simulators}
+Table~\ref{chap06:tab:comparison} lists some typical network simulators. In general, they can be categorized as shared-memory design (\textit{BookSim}, \textit{Noxim}, \textit{DARSIM}, and \textit{Garnet}) and distributed-memory design (\textit{OMNeT++}, \textit{NS-3}, \textit{SST}, and \textit{ROSS}).
+
+\textbf{BookSim}~\cite{Jiang_DetailedFlexibleCycleaccurate_2013} is a cycle-accurate network-on-chip simulator validated against RTL implementations of real routers. It is accurate and highly modular, thus widely used in evaluating networks of various architectures and scales. The largest network scale found in the literature is $10,000$ nodes~\cite{Besta_SlimFlyCost_2014}. However, \textit{BookSim} neither supports distributed nor hyper-threading simulations; thus, the simulation speed is slow for large-scale networks.
+
+\textbf{Noxim}~\cite{Catania_NoximOpenExtensible_2015} is a cycle-accurate simulator based on the SystemC library. It is designed for wireless networks-on-chip (WiNoC), but it can also be used for traditional on-chip networks. The largest network scale found in the literature is $256$ nodes~\cite{Catania_CycleAccurateNetworkChip_2016}. However, the speed of the simulation is slower since \textit{Noxim} is implemented based on SystemC and does not support parallel simulation.
+
+\textbf{DARSIM}~\cite{Lis_DARSIMParallelCyclelevel_2010} is a cycle-accurate simulator that achieves multi-threading using divided tiles and periodic synchronization. However, the topologies, network scales, and simulation speedup of \textit{DARSIM} are limited and deprecated.
+
+\textbf{Garnet}~\cite{Agarwal_GARNETDetailedOnchip_2009,Bharadwaj_KiteFamilyHeterogeneous_2020} is a cycle-accurate network simulator based on the Gem5 simulator~\cite{_Gem5Gem5Simulator_}. The network scale supported by \textit{Garnet} is hard to exceed 256 because the Gem5 memory subsystem cannot instantiate more directories~\cite{Krishna_Garnet20DetailedOnChip_2017}.
+
+\textbf{OMNeT++}~\cite{_OMNeTDiscreteEvent_} is an extensible, modular, and component-based discrete-event simulator that naturally supports heterogeneous link configurations. The \textbf{HNOCS}~\cite{Ben-Itzhak_HNOCSModularOpensource_2012} is a cycle-accurate implementation based on \textit{OMNeT++}. The largest network scale found in the literature is $17,000$ nodes~\cite{Besta_MillionServerNetworkSimulations_2021}. \textit{OMNeT++} supports parallel simulation; however, the network must be partitioned manually, and the partitions run concurrently in separate processes communicating over MPI, which is less efficient on shared-memory designs.
+
+\textbf{NS-3}~\cite{_Ns3NetworkSimulator_} is a discrete-event simulator that similar to \textit{OMNeT++}. The largest network scale found in the literature is $5,000$ nodes~\cite{Pelkey_DistributedSimulationMPI_2011}. Parallel simulations are also achieved by manual partitioning and MPI communication protocol.
+
+\textbf{SST}~\cite{Rodrigues_StructuralSimulationToolkit_2011} is a modular discrete-event simulator that supports parallel simulation. It enables the co-design of large-scale architectures by simulating diverse hardware and software aspects. The largest network scale found in the literature is $110,592$ nodes~\cite{Groves_SAIStalledActive_2016}. \textit{SST} also supports MPI-based parallel simulation.
+
+\textbf{ROSS}~\cite{Carothers_ROSSHighperformanceLowmemory_2002} is a high-performance, low-memory overhead, massively parallel discrete-event simulator. \textbf{CODES}~\cite{Carothers_EnablingCoDesignMultiLayer_2015,Mubarak_EnablingParallelSimulation_2017} is an MPI-based simulation toolkit running on \textit{ROSS} that provides a higher-level modeling API and high-fidelity models for HPC network and storage systems. The largest network scale found in the literature is $50,000,000$ nodes~\cite{Mubarak_ModelingMillionNodeDragonfly_2012}.
